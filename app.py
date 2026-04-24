@@ -34,15 +34,16 @@ DRUGS = {
         "indication": "Prévention rejet greffe cardiaque",
         "dose_normale": "0.075–0.1 mg/kg/j en 2 prises (taux résiduel cible)",
         "type": "trough",
+        "dose_poids": {"mg_kg_min": 0.075, "mg_kg_max": 0.1, "prises": 2, "unite": "mg/kg/j", "arrondi": 0.5},
         "paliers": [
             {"dfg_min": 30, "dfg_max": 999, "dose": "Dose inchangée — monitoring taux résiduel",
-             "niveau": "normal",
+             "niveau": "normal", "facteur": 1.0,
              "commentaire": "Tacrolimus métabolisé par le foie (CYP3A4) — insuffisance rénale n'affecte pas directement la PK. Cependant : tacrolimus est NÉPHROTOXIQUE — surveiller créatinine/DFG hebdomadaire les 3 premiers mois."},
             {"dfg_min": 15, "dfg_max": 29, "dose": "Réduire 20–30 % — taux résiduel strict",
-             "niveau": "warning",
+             "niveau": "warning", "facteur": 0.75,
              "commentaire": "IRC sévère : risque de néphrotoxicité accrue. Viser taux résiduel bas de la fourchette. Dosage 2×/sem minimum. Envisager biopsie si dégradation rapide."},
             {"dfg_min": 0, "dfg_max": 14, "dose": "Dose minimale efficace — avis expert impératif",
-             "niveau": "danger",
+             "niveau": "danger", "facteur": 0.5,
              "commentaire": "IRC terminale : risque néphrotoxicité majeur. Discuter switch vers MMF/azathioprine pour limiter tacrolimus. Hémodialyse ne retire pas le tacrolimus (liaison protéique > 99%)."},
         ],
         "trough_cibles": [
@@ -58,15 +59,16 @@ DRUGS = {
         "indication": "Prévention rejet greffe rénale",
         "dose_normale": "0.1–0.2 mg/kg/j en 2 prises",
         "type": "trough",
+        "dose_poids": {"mg_kg_min": 0.1, "mg_kg_max": 0.2, "prises": 2, "unite": "mg/kg/j", "arrondi": 0.5},
         "paliers": [
             {"dfg_min": 30, "dfg_max": 999, "dose": "Dose inchangée — monitoring trough",
-             "niveau": "normal",
+             "niveau": "normal", "facteur": 1.0,
              "commentaire": "Métabolisme hépatique prédominant. Ajuster selon taux résiduel uniquement. Surveiller fonction rénale du greffon."},
             {"dfg_min": 15, "dfg_max": 29, "dose": "Viser bas de la fourchette thérapeutique",
-             "niveau": "warning",
+             "niveau": "warning", "facteur": 0.75,
              "commentaire": "Dysfonction chronique du greffon possible. Réduire si créatinine monte sans rejet histologique prouvé."},
             {"dfg_min": 0, "dfg_max": 14, "dose": "Dose minimale — concertation multidisciplinaire",
-             "niveau": "danger",
+             "niveau": "danger", "facteur": 0.5,
              "commentaire": "Retour en dialyse possible. Maintenir immunosuppression si greffon encore fonctionnel (diurèse résiduelle)."},
         ],
         "trough_cibles": [
@@ -213,12 +215,13 @@ DRUGS = {
         "classe": "HBPM — Héparine de bas poids moléculaire",
         "indication": "TVP, EP, SCA — traitement curatif",
         "dose_normale": "1 mg/kg q12h SC (ou 1.5 mg/kg q24h si non-chirurgical)",
+        "dose_poids": {"mg_kg_min": 1.0, "mg_kg_max": 1.0, "prises": 2, "unite": "mg/kg q12h SC", "arrondi": 10},
         "paliers": [
-            {"dfg_min": 30, "dfg_max": 999, "dose": "1 mg/kg q12h SC", "niveau": "normal",
+            {"dfg_min": 30, "dfg_max": 999, "dose": "1 mg/kg q12h SC", "niveau": "normal", "facteur": 1.0,
              "commentaire": "Dose standard. Monitoring anti-Xa non systématique sauf cas particuliers."},
-            {"dfg_min": 15, "dfg_max": 29, "dose": "1 mg/kg q24h SC", "niveau": "warning",
+            {"dfg_min": 15, "dfg_max": 29, "dose": "1 mg/kg q24h SC", "niveau": "warning", "facteur": 0.5,
              "commentaire": "Passer à une injection quotidienne. Contrôle anti-Xa pic systématique (cible 0.5–1 UI/mL à H4)."},
-            {"dfg_min": 0, "dfg_max": 14, "dose": "HNF IV préférée", "niveau": "contraindicated",
+            {"dfg_min": 0, "dfg_max": 14, "dose": "HNF IV préférée", "niveau": "contraindicated", "facteur": 0,
              "commentaire": "Enoxaparine non recommandée < 15 mL/min. Utiliser héparine non fractionnée IV avec contrôle TCA."},
         ],
         "reference": "ANSM, HAS, RCP Sanofi"
@@ -305,6 +308,34 @@ def get_palier(paliers, dfg):
             return p
     return paliers[-1]
 
+def arrondir(valeur, pas):
+    return round(round(valeur / pas) * pas, 4)
+
+def calc_dose_patient(drug, palier, poids):
+    if "dose_poids" not in drug:
+        return None
+    dp = drug["dose_poids"]
+    facteur = palier.get("facteur", 1.0)
+    if facteur == 0:
+        return None
+    dose_min_j = dp["mg_kg_min"] * poids * facteur
+    dose_max_j = dp["mg_kg_max"] * poids * facteur
+    pas = dp["arrondi"]
+    dose_min_arr = arrondir(dose_min_j, pas)
+    dose_max_arr = arrondir(dose_max_j, pas)
+    prises = dp["prises"]
+    dose_min_prise = arrondir(dose_min_j / prises, pas)
+    dose_max_prise = arrondir(dose_max_j / prises, pas)
+    return {
+        "dose_j_min": dose_min_arr,
+        "dose_j_max": dose_max_arr,
+        "dose_prise_min": dose_min_prise,
+        "dose_prise_max": dose_max_prise,
+        "prises": prises,
+        "unite": dp["unite"],
+        "identique": dp["mg_kg_min"] == dp["mg_kg_max"],
+    }
+
 NIVEAU_COLORS = {
     "normal":         ("#10b981", "#052e16", "✅ Dose normale"),
     "warning":        ("#f59e0b", "#1c1408", "⚠️  Dose ajustée"),
@@ -377,6 +408,41 @@ if drug_name:
       </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # ── Dose calculée pour ce patient
+    dose_calc = calc_dose_patient(drug, palier, poids)
+    if dose_calc and palier["niveau"] != "contraindicated":
+        dp = drug["dose_poids"]
+        facteur = palier.get("facteur", 1.0)
+        if dose_calc["identique"]:
+            ligne_j     = f"{dose_calc['dose_j_min']} mg/j"
+            ligne_prise = f"{dose_calc['dose_prise_min']} mg  ×  {dose_calc['prises']}/j"
+        else:
+            ligne_j     = f"{dose_calc['dose_j_min']} – {dose_calc['dose_j_max']} mg/j"
+            ligne_prise = f"{dose_calc['dose_prise_min']} – {dose_calc['dose_prise_max']} mg  ×  {dose_calc['prises']}/j"
+        mg_kg_label = str(dp['mg_kg_min']) if dose_calc["identique"] else f"{dp['mg_kg_min']}–{dp['mg_kg_max']}"
+        facteur_label = f" × facteur {facteur}" if facteur != 1.0 else ""
+        st.markdown(f"""
+        <div style="background:#0c1a2e;border:2px solid #3b82f6;border-radius:14px;padding:20px 28px;margin-bottom:20px">
+          <div style="color:#60a5fa;font-size:0.75rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:600">
+            💊 Dose calculée pour ce patient ({poids} kg)
+          </div>
+          <div style="display:flex;gap:32px;align-items:center;flex-wrap:wrap">
+            <div>
+              <div style="font-size:2rem;font-weight:800;color:#f1f5f9">{ligne_j}</div>
+              <div style="color:#94a3b8;font-size:0.82rem;margin-top:2px">{dose_calc['unite']}</div>
+            </div>
+            <div style="width:1px;height:40px;background:#27272a"></div>
+            <div>
+              <div style="font-size:1.2rem;font-weight:600;color:#93c5fd">{ligne_prise}</div>
+              <div style="color:#64748b;font-size:0.78rem;margin-top:2px">répartition par prise</div>
+            </div>
+          </div>
+          <div style="color:#475569;font-size:0.75rem;margin-top:10px">
+            Calcul : {mg_kg_label} mg/kg × {poids} kg{facteur_label} → arrondi au {dp['arrondi']} mg le plus proche
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # ── Infos médicament
     col1, col2 = st.columns([1, 1])
