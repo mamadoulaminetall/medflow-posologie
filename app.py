@@ -403,13 +403,17 @@ with tab_outil:
 
     rec_note_html = f'<div style="background:#0f0f11;border-radius:6px;padding:10px;margin-top:14px;color:#fbbf24;font-size:0.80rem">{rec_note}</div>' if rec_note else ''
 
-    st.markdown(f"""<div style="background:{rec_bg};border:2px solid {rec_border};border-radius:14px;padding:28px 32px">
-      <div style="color:#94a3b8;font-size:0.68rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;font-weight:700">{rec_titre}</div>
-      <div style="font-size:3rem;font-weight:900;color:#f1f5f9;line-height:1">{dose_rec} <span style="font-size:1.1rem;color:#94a3b8;font-weight:400">mg/j</span></div>
-      <div style="font-size:1.3rem;color:#93c5fd;font-weight:600;margin-top:10px">{dose_prise} mg × 2 /j (q12h)</div>
-      <div style="color:#475569;font-size:0.80rem;margin-top:5px">matin + soir — toutes les 12h · capsules Prograf® 0,5 / 1 / 5 mg</div>
-      {rec_note_html}
-    </div>""", unsafe_allow_html=True)
+    _rec_parts = [
+        f'<div style="background:{rec_bg};border:2px solid {rec_border};border-radius:14px;padding:28px 32px">',
+        f'<div style="color:#94a3b8;font-size:0.68rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;font-weight:700">{rec_titre}</div>',
+        f'<div style="font-size:3rem;font-weight:900;color:#f1f5f9;line-height:1">{dose_rec} <span style="font-size:1.1rem;color:#94a3b8;font-weight:400">mg/j</span></div>',
+        f'<div style="font-size:1.3rem;color:#93c5fd;font-weight:600;margin-top:10px">{dose_prise} mg × 2 /j (q12h)</div>',
+        f'<div style="color:#475569;font-size:0.80rem;margin-top:5px">matin + soir — toutes les 12h · capsules Prograf® 0,5 / 1 / 5 mg</div>',
+    ]
+    if rec_note_html:
+        _rec_parts.append(rec_note_html)
+    _rec_parts.append('</div>')
+    st.markdown(''.join(_rec_parts), unsafe_allow_html=True)
 
     # ── RAISONNEMENT CLINIQUE ─────────────────────────────────────────────────
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
