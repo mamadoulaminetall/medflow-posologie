@@ -1,6 +1,6 @@
-# 💊 MedFlow Posologie
+# MedFlow AI — Tacrolimus · Greffe Cardiaque
 
-**Calculateur d'ajustement posologique selon la fonction rénale — propulsé par MedFlow AI**
+**Outil d'aide à la décision posologique pour le suivi thérapeutique du tacrolimus post-transplantation cardiaque**
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://medflow-posologie.streamlit.app)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-3b82f6.svg)](https://www.python.org/)
@@ -10,49 +10,68 @@
 
 ## Présentation
 
-**MedFlow Posologie** est un outil d'aide à la prescription destiné aux cliniciens. Il calcule le DFG en temps réel (formule de Cockcroft-Gault) et fournit, pour chaque médicament sélectionné, la dose adaptée au stade d'insuffisance rénale chronique du patient, avec les mises en garde cliniques correspondantes.
+**MedFlow AI Posologie** est un outil clinique spécialisé dans le suivi thérapeutique du **tacrolimus (Prograf®)** chez les patients greffés cardiaques. Il combine pharmacocinétique, néphroprotection et ionogramme pour proposer une posologie individualisée, documentée et traçable.
 
-Conçu pour une utilisation rapide au lit du patient ou lors d'une consultation, sans inscription ni connexion.
-
----
-
-## Médicaments disponibles
-
-| Catégorie | Médicaments |
-|---|---|
-| **Immunosuppresseurs (greffe)** | Tacrolimus / Prograf — greffe cardiaque, greffe rénale |
-| **Antidiabétiques** | Metformine |
-| **Antibiotiques** | Amoxicilline, Amoxicilline-Clavulanate, Ciprofloxacine, Cotrimoxazole (TMP-SMX) |
-| **Antiépileptiques / Neuropathiques** | Gabapentine, Prégabaline |
-| **Cardiovasculaires** | Ramipril (IEC), Atenolol (BB), Digoxine |
-| **Anticoagulants** | Enoxaparine (HBPM curatif), Dabigatran (FA), Rivaroxaban (FA) |
-| **Antiviraux** | Aciclovir IV |
-
-> Nouvelles molécules ajoutées régulièrement. Contributions bienvenues via Pull Request.
+Conçu pour une utilisation rapide en consultation ou en visite, sans inscription requise.
 
 ---
 
 ## Fonctionnalités
 
-- **Calcul DFG automatique** — Formule de Cockcroft-Gault à partir de l'âge, du poids, du sexe et de la créatininémie (µmol/L)
-- **Stade IRC** — Classification KDIGO G1 à G5 avec code couleur
-- **Recommandation posologique** — Palier actif mis en évidence parmi tous les paliers définis
-- **Niveaux trough cibles** — Pour le tacrolimus : cibles résiduelles par phase post-greffe (M0–M3, M3–M12, > 1 an)
-- **Alertes interactions** — Principales interactions médicamenteuses signalées (CYP3A4, AINS, etc.)
-- **Références intégrées** — HAS, KDIGO, ESC, EMA, Vidal/SPC pour chaque molécule
-- **Interface sombre optimisée** — Confort visuel en environnement de travail clinique
+### Identification et suivi patient
+- Saisie nom / prénom → **ID unique déterministe** (SHA-256, 8 caractères)
+- Détection automatique patient connu avec badge *N bilans enregistrés*
+- Base de données SQLite locale — aucune donnée transmise à l'extérieur
+
+### Calculs cliniques
+- **DFG Cockcroft-Gault** en temps réel (âge, poids, sexe, créatinine µmol/L)
+- **Stade KDIGO** G1 à G5 avec code couleur
+- **Ajustement PK proportionnel** du tacrolimus (Staatz & Tett, 2004) : dose × (C0-cible / C0-mesuré)
+- **Plafond néphroprotecteur** individualisé : 0,1 mg/kg × facteur DFG par stade (Ojo 2003, Ekberg 2007, Naesens 2009)
+- **Gestion hyperkaliémie** : plafonnement automatique si K⁺ > 5,5 mmol/L (Tumlin 1996)
+- Cibles C0 par phase post-greffe : M0–M3 (10–15), M3–M12 (8–12), > 1 an (5–10 ng/mL)
+
+### Rapport PDF multipage
+- En-tête MedFlow AI avec identité patient et ID
+- Bilan actuel en deux colonnes (biologie rénale / tacrolimus + ionogramme)
+- Bloc recommandation coloré (vert / orange / rouge selon criticité)
+- **Interprétation clinique détaillée** — justification de la dose paragraphe par paragraphe :
+  - Contexte clinique (DFG, stade KDIGO)
+  - Analyse C0 résiduel et calcul PK
+  - Application du plafond néphroprotecteur avec références bibliographiques
+  - Contrainte hyperkaliémie si applicable
+  - Conclusion posologique
+- Raisonnement méthodologique (4 étapes avec formules)
+- Tableau historique de tous les bilans
+- Graphiques d'évolution (DFG, C0, dose, K⁺) dès le 2e bilan
+
+### Suivi longitudinal
+- Enregistrement de chaque bilan avec horodatage
+- Graphiques Plotly interactifs (thème sombre) : DFG, C0, dose recommandée, kaliémie
+- Bandes de référence visuelles (zone thérapeutique C0, normokaliémie)
+
+### Ionogramme
+- Interprétation natrémie (Na⁺) et kaliémie (K⁺)
+- Alertes cliniques graduées (normale → urgence métabolique)
+- Intégration dans la décision posologique
 
 ---
 
-## Démarrage rapide
+## Bases scientifiques
 
-### Prérequis
+| Référence | Contribution dans l'outil |
+|---|---|
+| Staatz & Tett, *Clin Pharmacokinet* 2004 | Ajustement PK proportionnel (r C0/AUC = 0,89) |
+| Ojo et al., *NEJM* 2003 (n = 69 321) | Plafond rénal 0,1 mg/kg — 16,5 % IRC sévère à 5 ans sous CNI |
+| Ekberg et al. SYMPHONY, *NEJM* 2007 (n = 1 645) | Facteurs DFG — +8,3 mL/min si CNI réduit |
+| Naesens et al., *CJASN* 2009 | Néphrotoxicité dose-dépendante des CNI |
+| Kobashigawa et al. ISHLT, *J Heart Lung Transplant* 2016 | Cibles C0 par phase post-greffe cardiaque |
+| Tumlin et al., *Am J Kidney Dis* 1996 | Hyperkaliémie induite par CNI — mécanisme aldostérone-like |
+| Cockcroft & Gault, *Nephron* 1976 | Formule d'estimation du DFG |
 
-```bash
-python >= 3.9
-```
+---
 
-### Installation
+## Installation
 
 ```bash
 git clone https://github.com/mamadoulaminetall/medflow-posologie.git
@@ -65,36 +84,22 @@ streamlit run app.py
 
 ```
 streamlit>=1.30.0
+fpdf2>=2.7.9
+matplotlib>=3.7.0
+plotly>=5.18.0
 ```
 
----
-
-## Déploiement Streamlit Cloud
-
-1. Forker ce dépôt
-2. Connecter à [share.streamlit.io](https://share.streamlit.io)
-3. Sélectionner `app.py` comme point d'entrée
-4. Déployer en un clic
+> SQLite est inclus dans la bibliothèque standard Python (aucune installation supplémentaire).
 
 ---
 
 ## Formule Cockcroft-Gault
 
 ```
-DFG (mL/min) = ((140 − âge) × poids × F) / (0.815 × créatinine µmol/L)
+DFG (mL/min) = ((140 − âge) × poids × F) / (0,815 × créatinine µmol/L)
 
-F = 1.00 (Homme) | 0.85 (Femme)
+F = 1,00 (Homme)  |  F = 0,85 (Femme)
 ```
-
-> Formule recommandée par la HAS et les sociétés savantes françaises pour l'adaptation posologique en pratique clinique courante.
-
----
-
-## Avertissement médical
-
-> Cet outil est une **aide à la décision clinique**. Il ne remplace pas le jugement du praticien, la lecture des RCP officiels, ni la prise en compte du contexte individuel du patient (hépatopathie, poids extrême, grossesse, interactions médicamenteuses multiples).
->
-> **Usage professionnel médical exclusif.**
 
 ---
 
@@ -102,27 +107,33 @@ F = 1.00 (Homme) | 0.85 (Femme)
 
 ```
 medflow-posologie/
-├── app.py                  # Application principale Streamlit
-├── requirements.txt        # Dépendances Python
-├── README.md               # Ce fichier
-└── LICENSE                 # Licence MIT
+├── app.py            # Application Streamlit (calculs, PDF, historique)
+├── requirements.txt  # Dépendances Python
+├── patients.db       # Base SQLite locale (générée automatiquement, non versionnée)
+└── README.md
 ```
 
 ---
 
-## Roadmap
+## Déploiement Streamlit Cloud
 
-- [ ] Ajustement hépatique (score Child-Pugh)
-- [ ] Mode multi-médicaments (interactions croisées)
-- [ ] Export PDF de la fiche patient
-- [ ] API REST (intégration SIH / DPI)
-- [ ] Version anglaise
+1. Connecter le dépôt sur [share.streamlit.io](https://share.streamlit.io)
+2. Point d'entrée : `app.py`
+3. Déploiement automatique à chaque `git push`
+
+---
+
+## Avertissement
+
+> Outil d'**aide à la décision clinique** exclusivement. Ne remplace pas la concertation de l'équipe de transplantation, la lecture des RCP officiels, ni le jugement clinique individuel. Adapter systématiquement au protocole institutionnel.
+>
+> **Usage professionnel médical exclusif — MedFlow AI.**
 
 ---
 
 ## Auteur
 
-**Dr. Mamadou Lamine TALL, PhD**
+**Dr. Mamadou Lamine TALL, PhD**  
 Bioinformatique & Intelligence Artificielle Médicale
 
 - GitHub : [@mamadoulaminetall](https://github.com/mamadoulaminetall)
@@ -131,10 +142,4 @@ Bioinformatique & Intelligence Artificielle Médicale
 
 ---
 
-## Licence
-
-MIT License — libre d'utilisation, modification et redistribution avec attribution.
-
----
-
-*Fait partie de la suite **MedFlow AI** — outils IA pour cliniciens.*
+*Composant de la suite **MedFlow AI** — outils IA pour cliniciens.*
