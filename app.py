@@ -20,21 +20,27 @@ from db import (
 )
 from pdf_gen import generate_pdf, PDF_OK
 
-# ─── Auth optionnelle (nécessite config.yaml) ─────────────────────────────────
+# ─── Auth depuis Streamlit secrets ────────────────────────────────────────────
 AUTH_ENABLED = False
 _auth        = None
 try:
-    import yaml
     import streamlit_authenticator as stauth
-    _cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml")
-    if os.path.exists(_cfg_path):
-        with open(_cfg_path) as _f:
-            _cfg = yaml.safe_load(_f)
+    if "auth" in st.secrets:
+        _s = st.secrets["auth"]
+        _credentials = {
+            "usernames": {
+                _s["username"]: {
+                    "email":    _s["email"],
+                    "name":     _s["name"],
+                    "password": _s["password_hash"],
+                }
+            }
+        }
         _auth = stauth.Authenticate(
-            _cfg['credentials'],
-            _cfg['cookie']['name'],
-            _cfg['cookie']['key'],
-            _cfg['cookie']['expiry_days'],
+            _credentials,
+            "medflow_cookie",
+            _s["cookie_key"],
+            cookie_expiry_days=30,
         )
         AUTH_ENABLED = True
 except Exception:
