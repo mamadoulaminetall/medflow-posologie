@@ -13,6 +13,7 @@ from calculations import (
     calc_dfg, get_stade, arrondir_05, interp_sodium, interp_potassium,
     recommander_tacrolimus, delta_str, correct_c0_hematocrit,
 )
+from ai_gen import generate_consultation_summary, AI_OK
 from db import (
     init_db, generate_patient_id, upsert_patient, save_consultation,
     get_consultations, count_consultations, get_all_patients, search_patients,
@@ -456,7 +457,7 @@ with tab_outil:
 
     # ── BOUTONS SAVE + PDF ────────────────────────────────────────────────────
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
-    btn1, btn2, btn3 = st.columns([1.2, 1.5, 3])
+    btn1, btn2, btn3 = st.columns([1.2, 1.5, 1.2])
 
     with btn1:
         save_clicked = st.button(
@@ -475,6 +476,14 @@ with tab_outil:
             c0_statut, na_label, k_label
         )
         st.success(f"✅ Bilan enregistré pour {pat_prenom.capitalize()} {pat_nom.upper()} (#{pat_id})")
+
+    with btn3:
+        ai_clicked = st.button(
+            "🤖 Résumé IA",
+            disabled=not patient_valid,
+            use_container_width=True,
+            help="Génère un résumé prêt pour le DPI" if AI_OK else "Configurer ANTHROPIC_API_KEY dans les secrets Streamlit",
+        )
 
     history_rows = get_consultations(pat_id) if patient_valid else []
 
@@ -502,6 +511,40 @@ with tab_outil:
                     )
                 elif not PDF_OK:
                     st.warning("fpdf2 non installé — `pip install fpdf2`")
+
+    # ── RÉSUMÉ IA ─────────────────────────────────────────────────────────────
+    if ai_clicked and patient_valid:
+        with st.spinner("Génération du résumé en cours…"):
+            _summary = generate_consultation_summary(
+                age, sexe, poids, dfg, stade, stade_desc,
+                na_val, na_label, k_val, k_label,
+                phase_label, c0, c0_statut, t_min, t_max,
+                dose_tac, dose_rec, dose_prise,
+                k_eleve=k_eleve, ht_pct=ht_pct,
+            )
+        if _summary:
+            st.session_state["ai_summary"] = _summary
+        else:
+            st.warning("⚠️ Clé ANTHROPIC_API_KEY manquante ou erreur API — configurer dans les secrets Streamlit.")
+
+    if st.session_state.get("ai_summary"):
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='color:#8b5cf6;font-size:0.7rem;text-transform:uppercase;"
+            "letter-spacing:.08em;font-weight:700;margin-bottom:8px'>"
+            "🤖 Résumé de consultation — MedFlow AI</div>",
+            unsafe_allow_html=True,
+        )
+        st.text_area(
+            label="résumé",
+            value=st.session_state["ai_summary"],
+            height=185,
+            label_visibility="collapsed",
+            key="ai_summary_box",
+        )
+        if st.button("🗑 Effacer le résumé", key="clear_ai_summary"):
+            del st.session_state["ai_summary"]
+            st.rerun()
 
     # ── HISTORIQUE LONGITUDINAL ───────────────────────────────────────────────
     if patient_valid and history_rows:
