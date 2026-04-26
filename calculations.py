@@ -294,6 +294,81 @@ def recommander_mmf(dose_act_mg, phase_key, dfg=60.0, gb=0.0, pnn=0.0, gi_intole
     return dose, dose_matin, dose_soir, cp_matin, cp_soir, alertes
 
 
+# ─── Prednisolone / Prednisone post-greffe cardiaque ─────────────────────────
+PRED_CIBLES = {
+    "M0 – M3  (phase précoce)":  {"min": 15.0, "max": 30.0, "step": 5.0},
+    "M3 – M12  (maintenance)":   {"min": 10.0, "max": 15.0, "step": 2.5},
+    "> 1 an  (phase stable)":    {"min":  5.0, "max": 10.0, "step": 2.5},
+}
+
+PRED_REFS = [
+    ("ISHLT 2016 — Corticoïdes",  "Kobashigawa J et al. J Heart Lung Transplant. 2016;35(1):1–23. Protocole corticoïdes post-greffe cardiaque — dégression progressive."),
+    ("Sevrage stéroïdes",         "Kushwaha SS et al. J Heart Lung Transplant. 2001;20(4):430–438. Sevrage possible chez patients stables > 1 an sans rejet récent."),
+    ("NODAT / Diabète cortisone", "Hjelmesaeth J et al. Nephrol Dial Transplant. 1997;12(12):2625–2631. Hyperglycémie cortico-induite — facteur de risque CV et infectieux."),
+    ("Ostéoporose corticoïdes",   "Adler RA et al. J Bone Miner Res. 2017;32(3):447–457. Calcium + Vit D + bisphosphonates si corticoïdes > 3 mois ≥ 7,5 mg/j."),
+]
+
+
+def recommander_prednisolone(dose_act, phase_key, poids=70.0,
+                              glycemie=0.0, pas=0,
+                              rejet_recent=False, infection_active=False):
+    cible = PRED_CIBLES.get(phase_key, PRED_CIBLES["> 1 an  (phase stable)"])
+    c_min, c_max, step = cible["min"], cible["max"], cible["step"]
+    alertes = []
+
+    if glycemie > 0:
+        if glycemie > 11.0:
+            alertes.append(("🔴", f"Glycémie = {glycemie} mmol/L — diabète cortico-induit sévère",
+                             "Insuline requise en urgence · Avis diabétologie · Envisager réduction corticoïdes si possible"))
+        elif glycemie > 7.0:
+            alertes.append(("⚠️", f"Glycémie = {glycemie} mmol/L — hyperglycémie cortico-induite",
+                             "Surveillance glycémique quotidienne · Régime + activité · Discuter antidiabétiques oraux"))
+
+    if pas > 0:
+        if pas > 160:
+            alertes.append(("🔴", f"PAS = {pas} mmHg — HTA sévère cortico-induite",
+                             "Traitement antihypertenseur urgent · Calcium-bloquants en 1ère intention post-greffe · Avis cardiologue"))
+        elif pas > 140:
+            alertes.append(("⚠️", f"PAS = {pas} mmHg — HTA modérée",
+                             "Renforcer traitement antihypertenseur · Attention interaction CYP3A4 avec Tac si diltiazem/vérapamil"))
+
+    if rejet_recent:
+        alertes.append(("🔴", "Rejet aigu récent documenté",
+                         "Ne pas réduire les corticoïdes · Maintenir dose actuelle · Réévaluation en équipe de transplantation"))
+
+    if infection_active:
+        alertes.append(("⚠️", "Infection active en cours",
+                         "Tension immunosuppression / contrôle infectieux · Avis infectiologue + équipe transplantation urgent"))
+
+    if dose_act >= 7.5:
+        alertes.append(("ℹ️", "Prévention ostéoporose sous corticoïdes chroniques",
+                         "Calcium 1000–1200 mg/j + Vitamine D 800 UI/j systématiques · Bisphosphonates si > 3 mois (Adler et al., JBMR 2017)"))
+
+    if rejet_recent:
+        dose_rec = max(dose_act, c_min)
+        statut = "Maintenu — rejet récent" if dose_rec == dose_act else "Augmenté — rejet récent"
+        statut_color = "#ef4444"
+    elif dose_act > c_max:
+        dose_rec = max(dose_act - step, c_max)
+        statut, statut_color = "Au-dessus — réduire par palier", "#f59e0b"
+    elif dose_act < c_min:
+        dose_rec = dose_act
+        statut, statut_color = "En dessous — surveiller (insuffisance surrénale)", "#3b82f6"
+        alertes.append(("ℹ️", f"Dose < cible phase ({c_min} mg/j minimum)",
+                         "Ne pas arrêter brutalement — risque d'insuffisance surrénalienne · Réévaluer avec l'équipe"))
+    else:
+        dose_rec = dose_act
+        statut, statut_color = "Dans la cible — maintenir", "#10b981"
+
+    if phase_key == "> 1 an  (phase stable)" and dose_act <= 5.0 and not rejet_recent and not infection_active:
+        alertes.append(("ℹ️", "Sevrage stéroïdes envisageable (> 1 an, dose ≤ 5 mg, patient stable)",
+                         "Réduction par paliers de 1 mg/mois · Vérifier cortisol 8h avant arrêt définitif · ISHLT 2016"))
+
+    dose_rec = round(round(dose_rec / 0.5) * 0.5, 1)
+    dose_rec = max(dose_rec, 0.0)
+    return dose_rec, alertes, statut, statut_color
+
+
 def _estimate_expl_height(items, cpl=85, lh=5, th=5.5, gap=3):
     """Estime la hauteur PDF (mm) d'un bloc d'explication clinique."""
     total = 6

@@ -13,6 +13,7 @@ from calculations import (
     calc_dfg, get_stade, arrondir_05, interp_sodium, interp_potassium,
     recommander_tacrolimus, delta_str, correct_c0_hematocrit,
     MMF_PHASE_TARGETS, MMF_REFS, recommander_mmf,
+    PRED_CIBLES, PRED_REFS, recommander_prednisolone,
 )
 from ai_gen import generate_consultation_summary, AI_OK
 from db import (
@@ -196,7 +197,7 @@ with st.sidebar:
         st.markdown("<div style='color:#475569;font-size:0.78rem'>Aucun patient enregistré</div>", unsafe_allow_html=True)
 
 # ─── Tabs ─────────────────────────────────────────────────────────────────────
-tab_outil, tab_mmf, tab_mentions = st.tabs(["🫀  Tacrolimus", "💊  MMF / Cellcept®", "⚖️  Mentions légales & CGU"])
+tab_outil, tab_mmf, tab_pred, tab_mentions = st.tabs(["🫀  Tacrolimus", "💊  MMF / Cellcept®", "🟠  Prednisolone", "⚖️  Mentions légales & CGU"])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — OUTIL CLINIQUE
@@ -314,10 +315,11 @@ with tab_outil:
     t_min, t_max = phase["min"], phase["max"]
     dfg          = calc_dfg(age, poids, sexe, creat)
     stade, stade_desc, stade_color = get_stade(dfg)
-    # Partage avec onglet MMF
+    # Partage avec onglets MMF et Prednisolone
     st.session_state["_dfg"]         = dfg
     st.session_state["_phase_label"] = phase_label
     st.session_state["_stade"]       = stade
+    st.session_state["_poids"]       = poids
 
     na_label, na_color, na_icon, na_urgent = interp_sodium(na_val)
     k_label,  k_color,  k_icon,  k_urgent  = interp_potassium(k_val)
@@ -1030,7 +1032,210 @@ with tab_mmf:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — MENTIONS LÉGALES & CGU
+# TAB 3 — PREDNISOLONE / PREDNISONE
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_pred:
+
+    st.markdown("""
+    <div style="padding:0 0 6px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font-size:2rem">🟠</span>
+        <div>
+          <div style="font-size:1.55rem;font-weight:800;color:#f1f5f9">Prednisolone / Prednisone</div>
+          <div style="color:#64748b;font-size:0.82rem;margin-top:2px">Dégression corticoïdes post-greffe · Glycémie · HTA · Sevrage · MedFlow AI</div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
+    # ── Rappel depuis onglet Tacrolimus ───────────────────────────────────────
+    _dfg_p   = st.session_state.get("_dfg",   0.0)
+    _phase_p = st.session_state.get("_phase_label", list(PHASES.keys())[0])
+    _poids_p = st.session_state.get("_poids", 70.0)
+
+    if _dfg_p > 0:
+        st.markdown(
+            f"<div style='background:#0f1a2e;border:1px solid #3b82f6;border-radius:8px;"
+            f"padding:8px 16px;margin-bottom:14px;font-size:0.8rem'>"
+            f"<span style='color:#93c5fd;font-weight:700'>Données reprises depuis l'onglet Tacrolimus — </span>"
+            f"<span style='color:#e2e8f0'>DFG = {_dfg_p} mL/min · Phase : {_phase_p.split('(')[0].strip()} · Poids : {_poids_p} kg</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.info("Remplir l'onglet Tacrolimus en premier pour importer automatiquement la phase post-greffe et le poids.", icon="ℹ️")
+
+    # ── FORMULAIRE PRED ───────────────────────────────────────────────────────
+    pred_c1, pred_c2, pred_c3 = st.columns([1, 1, 1], gap="large")
+
+    with pred_c1:
+        st.markdown("<div style='color:#f97316;font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px'>🟠 Contexte post-greffe</div>", unsafe_allow_html=True)
+        pred_phase = st.selectbox(
+            "Phase post-greffe", list(PHASES.keys()),
+            index=list(PHASES.keys()).index(_phase_p) if _phase_p in PHASES else 0,
+            key="pred_phase"
+        )
+        pred_poids = st.number_input(
+            "Poids (kg)", min_value=30.0, max_value=250.0,
+            value=float(_poids_p) if _poids_p > 0 else 70.0,
+            step=0.5, key="pred_poids"
+        )
+        pred_dose_act = st.number_input(
+            "Dose actuelle prednisone (mg/j)", min_value=0.0, max_value=200.0,
+            value=20.0, step=2.5, key="pred_dose_act",
+            help="Dose totale quotidienne (prednisone ou prednisolone). Prednisolone 5 mg = Prednisone 5 mg = Méthylprednisolone 4 mg."
+        )
+
+    with pred_c2:
+        st.markdown("<div style='color:#f59e0b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px'>🩸 Glycémie & PA</div>", unsafe_allow_html=True)
+        pred_glycemie = st.number_input(
+            "Glycémie à jeun (mmol/L)", min_value=0.0, max_value=50.0,
+            value=0.0, step=0.1, key="pred_glycemie",
+            help="0 = non saisi. Norme < 5,6 mmol/L à jeun. NODAT si ≥ 7,0 mmol/L à 2 reprises."
+        )
+        pred_pas = st.number_input(
+            "PA systolique (mmHg)", min_value=0, max_value=300,
+            value=0, step=1, key="pred_pas",
+            help="0 = non saisi. Cible post-greffe < 130/80 mmHg (ISHLT 2016)."
+        )
+
+    with pred_c3:
+        st.markdown("<div style='color:#ef4444;font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px'>⚠️ Facteurs de risque</div>", unsafe_allow_html=True)
+        pred_rejet   = st.checkbox("Rejet aigu récent (< 3 mois)", key="pred_rejet",
+                                    help="Rejet cellulaire ou humoral documenté — contre-indique toute réduction de corticoïdes")
+        pred_infect  = st.checkbox("Infection active en cours",    key="pred_infection",
+                                    help="Infection bactérienne, virale (CMV, EBV) ou fungique active")
+        pred_diabete = st.checkbox("NODAT / Diabète cortico-induit connu", key="pred_diabete",
+                                    help="New-Onset Diabetes After Transplantation déjà diagnostiqué")
+
+    # ── CALCUL PRED ───────────────────────────────────────────────────────────
+    pred_dose_rec, pred_alertes, pred_statut, pred_statut_color = recommander_prednisolone(
+        pred_dose_act, pred_phase, pred_poids,
+        pred_glycemie, pred_pas, pred_rejet, pred_infect
+    )
+    if pred_diabete and not any("iabète" in a[1] or "NODAT" in a[1] for a in pred_alertes):
+        pred_alertes.append(("⚠️", "NODAT / Diabète cortico-induit connu",
+                              "Contrôle glycémique strict · Antidiabétiques oraux ou insuline selon profil · Avis diabétologie"))
+
+    _pred_cible = PRED_CIBLES.get(pred_phase, {"min": 5.0, "max": 10.0, "step": 2.5})
+
+    st.markdown("---")
+    st.markdown("<div style='color:#f97316;font-size:0.72rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:12px'>📋 Recommandation posologique — Prednisolone</div>", unsafe_allow_html=True)
+
+    # ── MÉTRIQUES ─────────────────────────────────────────────────────────────
+    pm1, pm2, pm3, pm4 = st.columns(4)
+    delta_pred     = round(pred_dose_rec - pred_dose_act, 1)
+    delta_pred_str = f"{delta_pred:+.1f} mg/j" if delta_pred != 0 else "Stable"
+    delta_pred_col = "#ef4444" if delta_pred < 0 else ("#f59e0b" if delta_pred > 0 else "#10b981")
+
+    with pm1: st.markdown(metric_box("Dose actuelle",      pred_dose_act,  "mg/j prednisone",         "#94a3b8"),          unsafe_allow_html=True)
+    with pm2: st.markdown(metric_box("Dose recommandée",   pred_dose_rec,  "mg/j → prochaine étape",  pred_statut_color),  unsafe_allow_html=True)
+    with pm3: st.markdown(metric_box("Cible phase",        f"{_pred_cible['min']}–{_pred_cible['max']}", f"mg/j · {pred_phase.split('(')[0].strip()}", "#8b5cf6"), unsafe_allow_html=True)
+    with pm4: st.markdown(metric_box("Variation",          delta_pred_str, "vs dose actuelle",         delta_pred_col),    unsafe_allow_html=True)
+
+    st.markdown(
+        f"<div style='background:#111113;border:1.5px solid {pred_statut_color};border-radius:10px;"
+        f"padding:14px 18px;margin-top:10px;text-align:center'>"
+        f"<div style='color:{pred_statut_color};font-size:1rem;font-weight:700'>{pred_statut}</div>"
+        f"<div style='color:#94a3b8;font-size:0.78rem;margin-top:4px'>"
+        f"Dose actuelle : {pred_dose_act} mg/j · Cible : {_pred_cible['min']}–{_pred_cible['max']} mg/j · "
+        f"Prochaine dose recommandée : {pred_dose_rec} mg/j</div></div>",
+        unsafe_allow_html=True
+    )
+
+    # ── ALERTES ───────────────────────────────────────────────────────────────
+    if pred_alertes:
+        st.markdown("<div style='margin-top:16px;margin-bottom:6px;color:#f59e0b;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em'>⚠️ Alertes cliniques</div>", unsafe_allow_html=True)
+        for icone, titre, action in pred_alertes:
+            bg = "#1f0808" if icone == "🔴" else ("#1a1208" if icone == "⚠️" else "#0a1628")
+            bd = "#dc2626" if icone == "🔴" else ("#f59e0b" if icone == "⚠️" else "#3b82f6")
+            tc = "#fca5a5" if icone == "🔴" else ("#fde68a" if icone == "⚠️" else "#93c5fd")
+            st.markdown(
+                f"<div style='background:{bg};border-left:3px solid {bd};border-radius:0 8px 8px 0;"
+                f"padding:10px 14px;margin-bottom:8px'>"
+                f"<span style='color:{tc};font-weight:700;font-size:0.8rem'>{icone} {titre}</span><br>"
+                f"<span style='color:#d1d5db;font-size:0.76rem'>→ {action}</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+    else:
+        st.markdown("<div style='color:#10b981;font-size:0.8rem;margin-top:10px'>✅ Aucune alerte — paramètres dans les normes</div>", unsafe_allow_html=True)
+
+    # ── CALENDRIER DE DÉCROISSANCE ────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("<div style='color:#f97316;font-size:0.72rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:12px'>📅 Calendrier de décroissance suggéré</div>", unsafe_allow_html=True)
+
+    if pred_rejet:
+        st.markdown("<div style='color:#ef4444;font-size:0.82rem'>🔴 Rejet récent — décroissance suspendue. Réévaluation par l'équipe de transplantation avant toute réduction.</div>", unsafe_allow_html=True)
+    elif pred_dose_act <= _pred_cible["min"]:
+        st.markdown(
+            f"<div style='color:#10b981;font-size:0.82rem'>✅ Dose déjà à la cible minimale ({_pred_cible['min']} mg/j). "
+            f"Maintenir ou discuter sevrage progressif si patient stable > 1 an.</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        # Générer les paliers de décroissance
+        tap_steps = []
+        d = pred_dose_act
+        c_step = _pred_cible["step"]
+        c_min  = _pred_cible["min"]
+        while d > c_min and len(tap_steps) < 8:
+            d_next = round(round(max(d - c_step, c_min) / 0.5) * 0.5, 1)
+            tap_steps.append((d, d_next))
+            d = d_next
+
+        th1, th2, th3, th4 = st.columns([0.6, 1, 1, 1.8])
+        for col, hdr in zip([th1, th2, th3, th4], ["Palier", "Dose actuelle", "→ Suivante", "Intervalle suggéré"]):
+            col.markdown(f"<div style='color:#475569;font-size:0.68rem;font-weight:700;text-transform:uppercase'>{hdr}</div>", unsafe_allow_html=True)
+        st.markdown("<hr style='border-color:#27272a;margin:4px 0 6px'>", unsafe_allow_html=True)
+        for i, (d_from, d_to) in enumerate(tap_steps):
+            bg = "#111113" if i % 2 == 0 else "#0f0f11"
+            r1, r2, r3, r4 = st.columns([0.6, 1, 1, 1.8])
+            r1.markdown(f"<div style='background:{bg};padding:6px 8px;border-radius:4px;color:#8b5cf6;font-size:0.76rem;font-weight:700'>P{i+1}</div>", unsafe_allow_html=True)
+            r2.markdown(f"<div style='background:{bg};padding:6px 8px;border-radius:4px;color:#f59e0b;font-size:0.76rem'>{d_from} mg/j</div>", unsafe_allow_html=True)
+            r3.markdown(f"<div style='background:{bg};padding:6px 8px;border-radius:4px;color:#10b981;font-size:0.76rem'>{d_to} mg/j</div>", unsafe_allow_html=True)
+            r4.markdown(f"<div style='background:{bg};padding:6px 8px;border-radius:4px;color:#64748b;font-size:0.74rem'>2–4 semaines selon tolérance clinique</div>", unsafe_allow_html=True)
+
+    # ── ÉQUIVALENCES CORTICOÏDES ──────────────────────────────────────────────
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown("""<div style="background:#111113;border:1px solid #27272a;border-radius:10px;padding:14px 18px">
+      <div style="color:#f97316;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">💊 Équivalences corticoïdes</div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div style="color:#e2e8f0;font-size:0.78rem"><strong style="color:#fb923c">Prednisone 5 mg</strong> = Prednisolone 5 mg = Méthylprednisolone 4 mg = Hydrocortisone 20 mg</div>
+        <div style="color:#94a3b8;font-size:0.76rem">Comprimés disponibles : 1 mg · 5 mg · 20 mg (prednisone) — permet titration fine par paliers de 2,5 mg</div>
+      </div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── MONITORING ────────────────────────────────────────────────────────────
+    st.markdown("---")
+    mp1, mp2, mp3, mp4 = st.columns(4)
+    def mon_box_pred(label, val, col):
+        return f"""<div style="background:#111113;border:1px solid #27272a;border-radius:10px;padding:12px">
+          <div style="color:#64748b;font-size:0.68rem;text-transform:uppercase;margin-bottom:6px">{label}</div>
+          <div style="color:{col};font-size:0.82rem;font-weight:600">{val}</div>
+        </div>"""
+    with mp1: st.markdown(mon_box_pred("Glycémie à jeun", "Hebdomadaire × 4, puis mensuelle", "#f59e0b"), unsafe_allow_html=True)
+    with mp2: st.markdown(mon_box_pred("PA & poids", "À chaque consultation", "#3b82f6"), unsafe_allow_html=True)
+    with mp3: st.markdown(mon_box_pred("Densitométrie (DXA)", "M3, puis annuelle si corticoïdes > 3 mois", "#8b5cf6"), unsafe_allow_html=True)
+    with mp4: st.markdown(mon_box_pred("Cortisol 8h", "Avant arrêt définitif des corticoïdes", "#94a3b8"), unsafe_allow_html=True)
+
+    # ── RÉFÉRENCES ────────────────────────────────────────────────────────────
+    with st.expander("📚 Références scientifiques — Corticoïdes post-greffe cardiaque"):
+        for ref_nom, ref_texte in PRED_REFS:
+            st.markdown(f"""<div style="background:#111113;border-left:3px solid #f97316;border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px">
+              <div style="color:#fb923c;font-weight:600;font-size:0.82rem;margin-bottom:4px">{ref_nom}</div>
+              <div style="color:#94a3b8;font-size:0.78rem">{ref_texte}</div>
+            </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div style="background:#0f0f11;border:1px solid #1e1e21;border-radius:10px;padding:12px 20px;color:#475569;font-size:0.75rem;text-align:center;margin-top:8px">
+      ⚕️ <strong style="color:#64748b">Outil d'aide à la décision — ne remplace pas la concertation d'équipe de transplantation.</strong>
+      Adapter systématiquement au protocole institutionnel. MedFlow AI — usage professionnel exclusif.
+    </div>""", unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — MENTIONS LÉGALES & CGU
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_mentions:
     st.markdown("""
