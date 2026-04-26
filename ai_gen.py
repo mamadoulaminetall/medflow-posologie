@@ -1,11 +1,7 @@
 import os
 
-AI_OK = False
-try:
-    import anthropic
-    AI_OK = True
-except Exception:
-    pass
+# AI_OK = True si la clé API est configurée (import anthropic est différé dans la fonction)
+AI_OK = bool(os.environ.get("ANTHROPIC_API_KEY", ""))
 
 
 def generate_consultation_summary(
@@ -16,7 +12,7 @@ def generate_consultation_summary(
     k_eleve=False, ht_pct=0,
 ) -> str | None:
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key or not AI_OK:
+    if not api_key:
         return None
 
     ht_line = f"- Hématocrite : {ht_pct}% (correction C0 appliquée)\n" if ht_pct > 0 else ""
@@ -46,6 +42,7 @@ def generate_consultation_summary(
     )
 
     try:
+        import anthropic
         client = anthropic.Anthropic(api_key=api_key)
         msg = client.messages.create(
             model="claude-sonnet-4-6",

@@ -5,7 +5,9 @@ import hashlib
 import os
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "patients.db")
+# Sur Streamlit Cloud /mount/src est en lecture seule → utiliser /tmp
+_base = "/tmp" if os.path.exists("/mount/src") else os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(_base, "medflow_patients.db")
 
 
 def init_db():

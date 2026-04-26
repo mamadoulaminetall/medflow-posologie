@@ -338,6 +338,12 @@ with tab_outil:
     delta_dfg_val = round(dfg - dfg_prec, 1) if dfg_prec else None
     delta_c0_val  = round(c0 - c0_prec, 1)   if c0_prec > 0 else None
 
+    # Invalider résumé IA si paramètres cliniques modifiés depuis sa génération
+    _ai_sig = (round(c0, 2), dose_rec, c0_statut, phase_label)
+    if st.session_state.get("ai_summary") and st.session_state.get("_ai_sig") != _ai_sig:
+        del st.session_state["ai_summary"]
+        st.session_state.pop("_ai_sig", None)
+
     # ── ALERTES CYP3A4 AUTOMATIQUES ──────────────────────────────────────────
     if _all_inter:
         _has_cyp = any(c in ("inhibiteur", "inducteur") for _, c in _all_inter)
@@ -624,6 +630,7 @@ with tab_outil:
             )
         if _summary:
             st.session_state["ai_summary"] = _summary
+            st.session_state["_ai_sig"] = _ai_sig
         else:
             st.warning("⚠️ Clé ANTHROPIC_API_KEY manquante ou erreur API — configurer dans les secrets Streamlit.")
 
