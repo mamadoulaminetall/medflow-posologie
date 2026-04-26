@@ -52,6 +52,12 @@ except Exception:
 STRIPE_CHECKOUT_URL = os.environ.get("STRIPE_CHECKOUT_URL", "")
 STRIPE_ENABLED      = bool(STRIPE_CHECKOUT_URL)
 
+# ─── Mot de passe admin (bypass paywall) ──────────────────────────────────────
+try:
+    ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "")
+except Exception:
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+
 # ─── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Tacrolimus — Greffe Cardiaque · MedFlow AI",
@@ -221,6 +227,26 @@ with st.sidebar:
                     use_container_width=True,
                     key="dl_demo_pdf",
                 )
+
+    st.markdown("<hr style='border-color:#27272a;margin:12px 0'>", unsafe_allow_html=True)
+
+    # ── Accès admin (bypass paywall) ─────────────────────────────────────────
+    if STRIPE_ENABLED and ADMIN_PASSWORD:
+        if not st.session_state.get("is_admin", False):
+            with st.expander("🔑 Accès admin", expanded=False):
+                _pw = st.text_input("Mot de passe", type="password", key="admin_pw_input",
+                                    label_visibility="collapsed", placeholder="Mot de passe admin")
+                if st.button("Valider", key="btn_admin_pw", use_container_width=True):
+                    if _pw == ADMIN_PASSWORD:
+                        st.session_state["is_admin"] = True
+                        st.rerun()
+                    else:
+                        st.error("Mot de passe incorrect")
+        else:
+            st.markdown("<div style='color:#10b981;font-size:0.75rem;font-weight:700'>✓ Mode admin activé — PDF illimité</div>", unsafe_allow_html=True)
+            if st.button("Déconnexion admin", key="btn_admin_logout", use_container_width=True):
+                st.session_state["is_admin"] = False
+                st.rerun()
 
     st.markdown("<hr style='border-color:#27272a;margin:12px 0'>", unsafe_allow_html=True)
     st.markdown("<div style='color:#64748b;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>📋 Patients enregistrés</div>", unsafe_allow_html=True)
@@ -673,7 +699,7 @@ with tab_outil:
 
     with btn2:
         if patient_valid:
-            if STRIPE_ENABLED:
+            if STRIPE_ENABLED and not st.session_state.get("is_admin", False):
                 st.link_button("💳 Souscrire pour le PDF", STRIPE_CHECKOUT_URL, use_container_width=True)
             else:
                 pdf_bytes = generate_pdf(
