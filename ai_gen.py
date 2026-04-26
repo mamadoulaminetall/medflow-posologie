@@ -4,7 +4,7 @@ AI_OK = False
 try:
     import anthropic
     AI_OK = True
-except ImportError:
+except Exception:
     pass
 
 
