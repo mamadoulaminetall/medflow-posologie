@@ -283,7 +283,11 @@ with tab_outil:
         with lc3: dose_prec  = st.number_input("Dose Tac précédente (mg/j)",     min_value=0.0, max_value=30.0,   value=0.0, step=0.5)
 
     # ── INTERACTIONS CYP3A4 sélecteur ─────────────────────────────────────────
-    with st.expander("⚠️  Interactions médicamenteuses — CYP3A4 & kaliémie (sélectionner les traitements concomitants)"):
+    _n_prev = (len(st.session_state.get("sel_inh", [])) +
+               len(st.session_state.get("sel_ind", [])) +
+               len(st.session_state.get("sel_k",   [])))
+    _badge = f" · 🔴 {_n_prev} active(s)" if _n_prev > 0 else " · aucune sélectionnée"
+    with st.expander(f"💊  Traitements concomitants — CYP3A4 & kaliémie{_badge}"):
         ci1, ci2, ci3 = st.columns(3)
         with ci1:
             st.markdown("<div style='color:#ef4444;font-size:0.72rem;font-weight:700;margin-bottom:6px'>Inhibiteurs CYP3A4 — ↑ taux Tac</div>", unsafe_allow_html=True)
@@ -294,29 +298,16 @@ with tab_outil:
         with ci3:
             st.markdown("<div style='color:#f97316;font-size:0.72rem;font-weight:700;margin-bottom:6px'>Aggravant hyperkaliémie</div>", unsafe_allow_html=True)
             sel_k   = st.multiselect("Hyper K+", [i["drug"] for i in CYP3A4_INTERACTIONS["hyperkaliemie"]], label_visibility="collapsed", key="sel_k")
+        if not (sel_inh or sel_ind or sel_k):
+            st.markdown("<div style='color:#475569;font-size:0.78rem'>Sélectionner les traitements concomitants pour activer les alertes automatiques</div>", unsafe_allow_html=True)
 
-        if sel_inh or sel_ind or sel_k:
-            st.markdown("<hr style='border-color:#3f3f46;margin:8px 0'>", unsafe_allow_html=True)
-            all_selected = (
-                [(i, "inhibiteur") for i in sel_inh] +
-                [(i, "inducteur")  for i in sel_ind] +
-                [(i, "k")          for i in sel_k]
-            )
-            lookup = {x["drug"]: x for cat in CYP3A4_INTERACTIONS.values() for x in cat}
-            for drug_name, cat_type in all_selected:
-                info = lookup.get(drug_name, {})
-                color = "#ef4444" if cat_type == "inhibiteur" else ("#f59e0b" if cat_type == "inducteur" else "#f97316")
-                st.markdown(
-                    f"<div style='background:#1a1208;border-left:3px solid {color};border-radius:0 8px 8px 0;"
-                    f"padding:8px 12px;margin-bottom:6px'>"
-                    f"<span style='color:{color};font-weight:700;font-size:0.78rem'>{drug_name}</span>"
-                    f"<span style='color:#94a3b8;font-size:0.75rem'> · {info.get('effect','')}</span><br>"
-                    f"<span style='color:#fbbf24;font-size:0.75rem'>→ {info.get('action','')}</span>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
-        else:
-            st.markdown("<div style='color:#475569;font-size:0.78rem'>Aucun médicament sélectionné — sélectionner pour voir les alertes spécifiques</div>", unsafe_allow_html=True)
+    # ── lookup global (utilisé aussi après les calculs) ───────────────────────
+    _lookup = {x["drug"]: x for cat in CYP3A4_INTERACTIONS.values() for x in cat}
+    _all_inter = (
+        [(d, "inhibiteur") for d in sel_inh] +
+        [(d, "inducteur")  for d in sel_ind] +
+        [(d, "k")          for d in sel_k]
+    )
 
     # ── CALCULS ───────────────────────────────────────────────────────────────
     phase        = PHASES[phase_label]
@@ -346,6 +337,47 @@ with tab_outil:
     dfg_prec      = calc_dfg(age, poids, sexe, creat_prec) if creat_prec > 0 else None
     delta_dfg_val = round(dfg - dfg_prec, 1) if dfg_prec else None
     delta_c0_val  = round(c0 - c0_prec, 1)   if c0_prec > 0 else None
+
+    # ── ALERTES CYP3A4 AUTOMATIQUES ──────────────────────────────────────────
+    if _all_inter:
+        _has_cyp = any(c in ("inhibiteur", "inducteur") for _, c in _all_inter)
+        _border  = "#dc2626" if _has_cyp else "#f97316"
+        _cards   = ""
+        for _drug, _cat in _all_inter:
+            _info  = _lookup.get(_drug, {})
+            _col   = "#ef4444" if _cat == "inhibiteur" else ("#f59e0b" if _cat == "inducteur" else "#f97316")
+            _label = "Inhibiteur CYP3A4 — ↑ Tac" if _cat == "inhibiteur" else ("Inducteur CYP3A4 — ↓ Tac" if _cat == "inducteur" else "Hyper K⁺")
+            _cards += (
+                f"<div style='border-left:3px solid {_col};padding:8px 12px;margin-bottom:8px;"
+                f"background:#1a0f0f;border-radius:0 6px 6px 0'>"
+                f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:3px'>"
+                f"<span style='color:{_col};font-weight:700;font-size:0.8rem'>{_drug}</span>"
+                f"<span style='background:{_col}33;color:{_col};font-size:0.65rem;padding:2px 7px;"
+                f"border-radius:4px;font-weight:700'>{_label}</span></div>"
+                f"<div style='color:#fde68a;font-size:0.74rem'>Effet : {_info.get('effect','')}</div>"
+                f"<div style='color:#d1d5db;font-size:0.74rem'>→ {_info.get('action','')}</div>"
+                f"</div>"
+            )
+        # Corrélation C0 hors cible
+        _corr = ""
+        if c0_statut != "thérapeutique" and _has_cyp:
+            _dir = "élevé" if c0_statut == "suprathérapeutique" else "bas"
+            _cause = "inhibiteur(s) CYP3A4 détecté(s)" if any(c == "inhibiteur" for _, c in _all_inter) else "inducteur(s) CYP3A4 détecté(s)"
+            _corr = (
+                f"<div style='background:#0f1f0f;border:1px solid #16a34a;border-radius:8px;"
+                f"padding:8px 12px;margin-top:4px'>"
+                f"<span style='color:#4ade80;font-size:0.76rem;font-weight:700'>🔍 Corrélation détectée —</span>"
+                f"<span style='color:#d1d5db;font-size:0.76rem'> C0 {_dir} ({c0} ng/mL) + {_cause} "
+                f"→ interaction médicamenteuse à considérer comme cause potentielle</span></div>"
+            )
+        st.markdown(
+            f"<div style='background:#120808;border:1.5px solid {_border};border-radius:12px;"
+            f"padding:14px 16px;margin-top:10px'>"
+            f"<div style='color:{_border};font-size:0.72rem;font-weight:700;text-transform:uppercase;"
+            f"letter-spacing:.06em;margin-bottom:10px'>⚡ {len(_all_inter)} ALERTE(S) MÉDICAMENTEUSE(S) ACTIVE(S)</div>"
+            f"{_cards}{_corr}</div>",
+            unsafe_allow_html=True
+        )
 
     # ── Alerte correction hématocrite ─────────────────────────────────────────
     if ht_pct > 0 and c0 != c0_raw:
