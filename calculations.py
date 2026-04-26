@@ -202,6 +202,98 @@ def build_clinical_explanation(age, sexe, poids, dfg, stade, stade_desc,
     return items
 
 
+# ─── MMF (Mycophenolate Mofetil) ─────────────────────────────────────────────
+MMF_TAB_MG = 500  # 1 comprimé = 500 mg
+
+MMF_PHASE_TARGETS = {
+    "M0 – M3  (phase précoce)":  3000,
+    "M3 – M12  (maintenance)":   2000,
+    "> 1 an  (phase stable)":    1500,
+}
+
+MMF_REFS = [
+    ("ISHLT 2016 — MMF",      "Kobashigawa J et al. J Heart Lung Transplant. 2016;35(1):1–23. Dose MMF standard : 1–1,5 g × 2/j en post-greffe cardiaque."),
+    ("Myfortic equiv.",       "Salvadori M et al. Am J Transplant. 2004;4(2):231–236. EC-MPA 720 mg ≡ MMF 1000 mg en efficacité/tolérance."),
+    ("Leucopénie / MMF",      "Remuzzi G et al. Transplantation. 2004;78(4):491–496. Leucopénie dose-dépendante sous MMF — seuils GB < 3,0 G/L."),
+    ("MMF DFG < 25",          "Ransom JT. Ther Drug Monit. 1995. Accumulation métabolite MPAG si DFG < 25 — dose max 2 × 1 g/j recommandée."),
+]
+
+
+def recommander_mmf(dose_act_mg, phase_key, dfg=60.0, gb=0.0, pnn=0.0, gi_intolerance=False):
+    """Recommande la dose MMF totale (mg/j) avec posologie BID.
+    1 comprimé Cellcept® = 500 mg.
+    Retourne: (dose_rec, dose_matin, dose_soir, cp_matin, cp_soir, alertes)
+    alertes = liste de (icône, titre, action)
+    """
+    TAB = MMF_TAB_MG
+    alertes = []
+
+    target = MMF_PHASE_TARGETS.get(phase_key, 2000)
+    dose = dose_act_mg if dose_act_mg >= TAB else target
+
+    # Correction rénale (DFG < 25 → max 2000 mg/j)
+    if 0 < dfg < 25:
+        dose = min(dose, 2000)
+        alertes.append(("⚠️", "DFG < 25 mL/min",
+                         "Dose max : 2000 mg/j (accumulation MPAG) — Ransom et al., Ther Drug Monit 1995"))
+
+    # Leucopénie (GB)
+    if gb > 0:
+        if gb < 1.5:
+            dose = 0
+            alertes.append(("🔴", f"GB = {gb} G/L < 1,5 — LEUCOPÉNIE SÉVÈRE",
+                             "ARRÊT MMF IMMÉDIAT · Avis infectiologue + hématologue urgent · Ne pas reprendre sans NFS normalisée"))
+        elif gb < 2.0:
+            dose = max(dose - 1000, 0)
+            alertes.append(("🔴", f"GB = {gb} G/L < 2,0 — leucopénie sévère",
+                             "Réduction −1000 mg/j · NFS de contrôle à J3 · Avis hématologue si persistant"))
+        elif gb < 3.0:
+            dose = max(dose - 500, 500)
+            alertes.append(("⚠️", f"GB = {gb} G/L < 3,0 — leucopénie modérée",
+                             "Réduction −500 mg/j · NFS de contrôle à J7"))
+
+    # Neutropénie (PNN)
+    if pnn > 0:
+        if pnn < 0.5:
+            dose = 0
+            alertes.append(("🔴", f"PNN = {pnn} G/L < 0,5 — AGRANULOCYTOSE",
+                             "ARRÊT IMMÉDIAT MMF · G-CSF à discuter · Isolement protecteur"))
+        elif pnn < 1.0:
+            dose = max(dose - 1000, 0)
+            alertes.append(("🔴", f"PNN = {pnn} G/L < 1,0 — neutropénie sévère",
+                             "Réduction −1000 mg/j · NFS à J3"))
+        elif pnn < 1.5:
+            dose = max(dose - 500, 500)
+            alertes.append(("⚠️", f"PNN = {pnn} G/L < 1,5 — neutropénie modérée",
+                             "Réduction −500 mg/j · NFS à J7"))
+
+    # Intolérance GI
+    if gi_intolerance and dose > 0:
+        dose = max(dose - 500, 1000)
+        alertes.append(("ℹ️", "Intolérance GI documentée",
+                         "Réduction −500 mg/j ou switch EC-MPA (Myfortic® 720 mg ≡ MMF 1000 mg) · Fractionnement des prises à envisager"))
+
+    # Arrondir au multiple de 500 mg
+    dose = round(dose / TAB) * TAB
+    dose = max(dose, 0)
+
+    # Calcul BID (matin + soir)
+    if dose == 0:
+        dose_matin, dose_soir, cp_matin, cp_soir = 0, 0, 0, 0
+    else:
+        half = dose / 2
+        if half % TAB == 0:  # symétrique
+            cp_matin = cp_soir = int(half // TAB)
+            dose_matin = dose_soir = int(half)
+        else:  # asymétrique (ex: 1500 mg/j → 1000 matin + 500 soir)
+            cp_matin = int(half // TAB) + 1
+            cp_soir  = int(half // TAB)
+            dose_matin = cp_matin * TAB
+            dose_soir  = cp_soir  * TAB
+
+    return dose, dose_matin, dose_soir, cp_matin, cp_soir, alertes
+
+
 def _estimate_expl_height(items, cpl=85, lh=5, th=5.5, gap=3):
     """Estime la hauteur PDF (mm) d'un bloc d'explication clinique."""
     total = 6

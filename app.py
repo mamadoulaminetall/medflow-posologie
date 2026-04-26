@@ -12,6 +12,7 @@ from calculations import (
     PHASES, REFS, META_DATA, CYP3A4_INTERACTIONS,
     calc_dfg, get_stade, arrondir_05, interp_sodium, interp_potassium,
     recommander_tacrolimus, delta_str, correct_c0_hematocrit,
+    MMF_PHASE_TARGETS, MMF_REFS, recommander_mmf,
 )
 from ai_gen import generate_consultation_summary, AI_OK
 from db import (
@@ -195,7 +196,7 @@ with st.sidebar:
         st.markdown("<div style='color:#475569;font-size:0.78rem'>Aucun patient enregistré</div>", unsafe_allow_html=True)
 
 # ─── Tabs ─────────────────────────────────────────────────────────────────────
-tab_outil, tab_mentions = st.tabs(["🫀  Outil clinique", "⚖️  Mentions légales & CGU"])
+tab_outil, tab_mmf, tab_mentions = st.tabs(["🫀  Tacrolimus", "💊  MMF / Cellcept®", "⚖️  Mentions légales & CGU"])
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — OUTIL CLINIQUE
@@ -322,6 +323,10 @@ with tab_outil:
     t_min, t_max = phase["min"], phase["max"]
     dfg          = calc_dfg(age, poids, sexe, creat)
     stade, stade_desc, stade_color = get_stade(dfg)
+    # Partage avec onglet MMF
+    st.session_state["_dfg"]         = dfg
+    st.session_state["_phase_label"] = phase_label
+    st.session_state["_stade"]       = stade
 
     na_label, na_color, na_icon, na_urgent = interp_sodium(na_val)
     k_label,  k_color,  k_icon,  k_urgent  = interp_potassium(k_val)
@@ -806,7 +811,179 @@ with tab_outil:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — MENTIONS LÉGALES & CGU
+# TAB 2 — MMF / CELLCEPT®
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_mmf:
+
+    st.markdown("""
+    <div style="padding:0 0 6px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font-size:2rem">💊</span>
+        <div>
+          <div style="font-size:1.55rem;font-weight:800;color:#f1f5f9">Mycophenolate Mofetil — Cellcept®</div>
+          <div style="color:#64748b;font-size:0.82rem;margin-top:2px">Dosage adapté · Hématotoxicité · 1 comprimé = 500 mg · MedFlow AI</div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
+    # ── Rappel DFG depuis onglet Tacrolimus ───────────────────────────────────
+    _dfg_stored    = st.session_state.get("_dfg", 0.0)
+    _phase_stored  = st.session_state.get("_phase_label", list(PHASES.keys())[1])
+    _stade_stored  = st.session_state.get("_stade", "")
+
+    if _dfg_stored > 0:
+        st.markdown(
+            f"<div style='background:#0f1a2e;border:1px solid #3b82f6;border-radius:8px;"
+            f"padding:8px 16px;margin-bottom:14px;font-size:0.8rem'>"
+            f"<span style='color:#93c5fd;font-weight:700'>Données reprises depuis l'onglet Tacrolimus — </span>"
+            f"<span style='color:#e2e8f0'>DFG = {_dfg_stored} mL/min (stade {_stade_stored}) · Phase : {_phase_stored.split('(')[0].strip()}</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.info("Remplir l'onglet Tacrolimus en premier pour importer automatiquement le DFG et la phase.", icon="ℹ️")
+
+    # ── FORMULAIRE MMF ────────────────────────────────────────────────────────
+    mmf_c1, mmf_c2, mmf_c3 = st.columns([1, 1, 1], gap="large")
+
+    with mmf_c1:
+        st.markdown("<div style='color:#8b5cf6;font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px'>🧬 Contexte clinique</div>", unsafe_allow_html=True)
+        mmf_phase = st.selectbox("Phase post-greffe", list(PHASES.keys()),
+                                  index=list(PHASES.keys()).index(_phase_stored) if _phase_stored in PHASES else 1,
+                                  key="mmf_phase")
+        mmf_dfg = st.number_input("DFG (mL/min)", min_value=0.0, max_value=200.0,
+                                   value=float(_dfg_stored) if _dfg_stored > 0 else 60.0,
+                                   step=1.0, key="mmf_dfg",
+                                   help="Pré-rempli depuis l'onglet Tacrolimus si calculé")
+
+    with mmf_c2:
+        st.markdown("<div style='color:#06b6d4;font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px'>🩸 NFS — Hématotoxicité</div>", unsafe_allow_html=True)
+        mmf_gb  = st.number_input("Globules blancs — GB (G/L)", min_value=0.0, max_value=30.0,
+                                   value=0.0, step=0.1, key="mmf_gb",
+                                   help="0 = non saisi. Seuils : ⚠️ < 3,0 · 🔴 < 2,0 · ARRÊT < 1,5 G/L")
+        mmf_pnn = st.number_input("Polynucléaires neutrophiles — PNN (G/L)", min_value=0.0, max_value=20.0,
+                                   value=0.0, step=0.1, key="mmf_pnn",
+                                   help="0 = non saisi. Seuils : ⚠️ < 1,5 · 🔴 < 1,0 · ARRÊT < 0,5 G/L")
+
+    with mmf_c3:
+        st.markdown("<div style='color:#10b981;font-size:0.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px'>💊 Paramètres MMF</div>", unsafe_allow_html=True)
+        mmf_dose_act = st.number_input("Dose actuelle MMF (mg/j)", min_value=0, max_value=4000,
+                                        value=2000, step=500, key="mmf_dose_act",
+                                        help="Dose totale journalière en mg. Multiples de 500 mg (1 cp).")
+        mmf_gi = st.checkbox("Intolérance gastro-intestinale (nausées, diarrhée)", key="mmf_gi",
+                              help="Diarrhée ≥ grade 2 ou symptômes GI limitants → réduction ou switch EC-MPA")
+
+    # ── CALCUL MMF ────────────────────────────────────────────────────────────
+    mmf_rec, mmf_dm, mmf_ds, mmf_cpm, mmf_cps, mmf_alertes = recommander_mmf(
+        mmf_dose_act, mmf_phase, mmf_dfg, mmf_gb, mmf_pnn, mmf_gi
+    )
+
+    st.markdown("---")
+    st.markdown("<div style='color:#10b981;font-size:0.72rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:12px'>📋 Recommandation posologique MMF</div>", unsafe_allow_html=True)
+
+    # Résultat principal
+    if mmf_rec == 0:
+        st.markdown("""
+        <div style="background:#1f0808;border:2px solid #dc2626;border-radius:12px;padding:18px 24px;text-align:center">
+          <div style="font-size:1.6rem;font-weight:800;color:#ef4444">ARRÊT MMF</div>
+          <div style="color:#fca5a5;font-size:0.88rem;margin-top:4px">Reprendre uniquement après normalisation hématologique</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        delta_mmf = mmf_rec - mmf_dose_act
+        delta_sign = f"+{delta_mmf}" if delta_mmf > 0 else str(delta_mmf)
+        delta_color = "#10b981" if delta_mmf > 0 else ("#ef4444" if delta_mmf < 0 else "#94a3b8")
+        schema_bidi = (
+            f"{mmf_dm} mg matin ({mmf_cpm} cp) + {mmf_ds} mg soir ({mmf_cps} cp)"
+            if mmf_cpm != mmf_cps else
+            f"{mmf_dm} mg × 2/j ({mmf_cpm} cp matin + {mmf_cps} cp soir)"
+        )
+
+        rc1, rc2, rc3 = st.columns(3)
+        with rc1:
+            st.markdown(f"""
+            <div style="background:#111827;border:1px solid #27272a;border-radius:12px;padding:16px;text-align:center">
+              <div style="color:#94a3b8;font-size:0.72rem;margin-bottom:6px">DOSE RECOMMANDÉE</div>
+              <div style="font-size:2rem;font-weight:800;color:#f1f5f9">{mmf_rec} <span style="font-size:1rem">mg/j</span></div>
+              <div style="color:{delta_color};font-size:0.8rem;margin-top:4px">{delta_sign} mg vs actuel</div>
+            </div>""", unsafe_allow_html=True)
+        with rc2:
+            st.markdown(f"""
+            <div style="background:#111827;border:1px solid #27272a;border-radius:12px;padding:16px;text-align:center">
+              <div style="color:#94a3b8;font-size:0.72rem;margin-bottom:6px">SCHÉMA BID</div>
+              <div style="font-size:1.1rem;font-weight:700;color:#a78bfa;line-height:1.5">{mmf_dm} mg<br><span style="color:#64748b;font-size:0.75rem">matin · {mmf_cpm} cp</span></div>
+            </div>""", unsafe_allow_html=True)
+        with rc3:
+            st.markdown(f"""
+            <div style="background:#111827;border:1px solid #27272a;border-radius:12px;padding:16px;text-align:center">
+              <div style="color:#94a3b8;font-size:0.72rem;margin-bottom:6px">SCHÉMA BID</div>
+              <div style="font-size:1.1rem;font-weight:700;color:#60a5fa;line-height:1.5">{mmf_ds} mg<br><span style="color:#64748b;font-size:0.75rem">soir · {mmf_cps} cp</span></div>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown(
+            f"<div style='background:#0a1628;border:1px solid #1d4ed8;border-radius:8px;padding:10px 16px;margin-top:10px;"
+            f"font-size:0.82rem;color:#93c5fd'>📌 Schéma complet : <strong>{schema_bidi}</strong> — 1 comprimé Cellcept® = 500 mg</div>",
+            unsafe_allow_html=True
+        )
+
+    # ── Alertes MMF ───────────────────────────────────────────────────────────
+    if mmf_alertes:
+        st.markdown("<div style='margin-top:16px;margin-bottom:6px;color:#f59e0b;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em'>⚠️ Alertes cliniques</div>", unsafe_allow_html=True)
+        for icone, titre, action in mmf_alertes:
+            bg = "#1f0808" if icone == "🔴" else ("#1a1208" if icone == "⚠️" else "#0a1628")
+            bd = "#dc2626" if icone == "🔴" else ("#f59e0b" if icone == "⚠️" else "#3b82f6")
+            tc = "#fca5a5" if icone == "🔴" else ("#fde68a" if icone == "⚠️" else "#93c5fd")
+            st.markdown(
+                f"<div style='background:{bg};border-left:3px solid {bd};border-radius:0 8px 8px 0;"
+                f"padding:10px 14px;margin-bottom:8px'>"
+                f"<span style='color:{tc};font-weight:700;font-size:0.8rem'>{icone} {titre}</span><br>"
+                f"<span style='color:#d1d5db;font-size:0.76rem'>→ {action}</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+    else:
+        st.markdown("<div style='color:#10b981;font-size:0.8rem;margin-top:10px'>✅ Aucune alerte hématologique — NFS normale</div>", unsafe_allow_html=True)
+
+    # ── Cible de dose par phase ───────────────────────────────────────────────
+    st.markdown("---")
+    with st.expander("📚 Cibles posologiques MMF par phase & références"):
+        tc1, tc2 = st.columns(2)
+        with tc1:
+            st.markdown("<div style='color:#8b5cf6;font-size:0.72rem;font-weight:700;margin-bottom:8px'>CIBLES PAR PHASE (ISHLT 2016)</div>", unsafe_allow_html=True)
+            for ph, mg in MMF_PHASE_TARGETS.items():
+                ph_short = ph.split('(')[0].strip()
+                cp_dose = mg // 1000
+                st.markdown(
+                    f"<div style='background:#18181b;border-radius:6px;padding:6px 10px;margin-bottom:4px;font-size:0.78rem'>"
+                    f"<span style='color:#a78bfa;font-weight:600'>{ph_short}</span>"
+                    f"<span style='color:#e2e8f0'> → {mg} mg/j</span>"
+                    f"<span style='color:#64748b'> ({cp_dose} cp × 2/j)</span>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+            st.markdown(
+                "<div style='background:#0a1628;border-radius:6px;padding:8px 10px;margin-top:6px;font-size:0.75rem;color:#93c5fd'>"
+                "💡 <strong>EC-MPA (Myfortic®)</strong> : 720 mg ≡ MMF 1000 mg — profil GI amélioré<br>"
+                "Comprimés 250 mg (Cellcept® capsules) aussi disponibles pour titration fine"
+                "</div>",
+                unsafe_allow_html=True
+            )
+        with tc2:
+            st.markdown("<div style='color:#06b6d4;font-size:0.72rem;font-weight:700;margin-bottom:8px'>RÉFÉRENCES CLINIQUES</div>", unsafe_allow_html=True)
+            for ref_title, ref_body in MMF_REFS:
+                st.markdown(
+                    f"<div style='background:#0d1117;border-left:2px solid #3b82f6;padding:6px 10px;margin-bottom:6px;border-radius:0 6px 6px 0'>"
+                    f"<div style='color:#60a5fa;font-size:0.72rem;font-weight:700'>{ref_title}</div>"
+                    f"<div style='color:#64748b;font-size:0.68rem;margin-top:2px'>{ref_body}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — MENTIONS LÉGALES & CGU
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_mentions:
     st.markdown("""
