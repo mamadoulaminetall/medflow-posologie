@@ -85,6 +85,25 @@ div[data-baseweb="radio"] > label > div:first-child {
 .stTabs [aria-selected="true"] { background: #1e1e24 !important; color: #f1f5f9 !important; }
 hr { border-color: #27272a; }
 footer { visibility: hidden; }
+/* ── Login page ── */
+[data-testid="stForm"] {
+  background: #111113 !important;
+  border: 1px solid #27272a !important;
+  border-radius: 14px !important;
+  padding: 1.6rem 2rem !important;
+  max-width: 420px !important;
+  margin: 0 auto !important;
+}
+[data-testid="stForm"] h2 { color: #f1f5f9 !important; }
+[data-testid="stForm"] label { color: #94a3b8 !important; font-size: 0.82rem !important; }
+[data-testid="stForm"] input {
+  background: #18181b !important; border: 1px solid #3f3f46 !important;
+  color: #f1f5f9 !important; border-radius: 8px !important; }
+[data-testid="stForm"] button[kind="primaryFormSubmit"] {
+  background: linear-gradient(135deg,#7c3aed,#2563eb) !important;
+  border: none !important; color: white !important;
+  width: 100% !important; border-radius: 8px !important;
+  font-weight: 700 !important; padding: 0.55rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,16 +111,53 @@ footer { visibility: hidden; }
 init_db()
 
 if AUTH_ENABLED and _auth is not None:
-    name, auth_status, username = _auth.login()
+    # Affiche le logo MedFlow AI avant le formulaire de connexion
+    _auth_status_check = st.session_state.get("authentication_status")
+    if _auth_status_check is not True:
+        st.markdown("""
+<div style="display:flex;flex-direction:column;align-items:center;padding:2.5rem 0 1rem 0;">
+  <svg width="220" height="72" viewBox="0 0 220 72" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="hg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#7c3aed"/>
+        <stop offset="100%" style="stop-color:#2563eb"/>
+      </linearGradient>
+      <linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style="stop-color:#a78bfa"/>
+        <stop offset="100%" style="stop-color:#60a5fa"/>
+      </linearGradient>
+    </defs>
+    <!-- Heart icon -->
+    <path d="M30 18 C30 12 24 8 18 12 C12 16 12 24 18 30 L30 42 L42 30 C48 24 48 16 42 12 C36 8 30 12 30 18Z"
+          fill="url(#hg)" opacity="0.95"/>
+    <!-- ECG pulse line over heart -->
+    <polyline points="14,30 19,30 22,22 25,38 28,26 31,30 38,30 41,30"
+              fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+    <!-- MedFlow text -->
+    <text x="56" y="32" font-family="'Helvetica Neue',Arial,sans-serif" font-size="22" font-weight="800"
+          fill="url(#tg)" letter-spacing="-0.5">MedFlow</text>
+    <!-- AI badge -->
+    <rect x="158" y="16" width="26" height="18" rx="5" fill="url(#hg)"/>
+    <text x="171" y="29" font-family="'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="700"
+          fill="white" text-anchor="middle" letter-spacing="0.5">AI</text>
+    <!-- Subtitle -->
+    <text x="56" y="52" font-family="'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="400"
+          fill="#94a3b8" letter-spacing="0.3">Aide à la décision posologique</text>
+  </svg>
+  <p style="color:#64748b;font-size:0.78rem;margin-top:0.5rem;letter-spacing:0.05em;">Transplantation cardiaque · Tacrolimus</p>
+</div>
+""", unsafe_allow_html=True)
+
+    _auth.login()
+    auth_status = st.session_state.get("authentication_status")
     if auth_status is False:
         st.error("Identifiants incorrects — accès refusé")
         st.stop()
     elif auth_status is None:
-        st.warning("🔐 Connexion requise pour accéder à MedFlow AI")
         st.stop()
     else:
         with st.sidebar:
-            _auth.logout("Se déconnecter", "main")
+            _auth.logout()
 
 # ─── Sidebar — Recherche patient ──────────────────────────────────────────────
 with st.sidebar:
