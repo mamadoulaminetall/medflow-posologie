@@ -1,6 +1,7 @@
-# MedFlow AI — Tacrolimus · Greffe Cardiaque
+# MedFlow AI — Posologie · Greffe Cardiaque
 
-**Outil d'aide à la décision posologique pour le suivi thérapeutique du tacrolimus post-transplantation cardiaque**
+**Suite tri-module d'aide à la décision posologique post-transplantation cardiaque**  
+Tacrolimus · MMF / Cellcept® · Prednisolone — Compte-rendu PDF + Résumé IA
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://medflow-posologie.streamlit.app)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-3b82f6.svg)](https://www.python.org/)
@@ -10,64 +11,81 @@
 
 ## Présentation
 
-**MedFlow AI Posologie** est un outil clinique spécialisé dans le suivi thérapeutique du **tacrolimus (Prograf®)** chez les patients greffés cardiaques. Il combine pharmacocinétique, néphroprotection et ionogramme pour proposer une posologie individualisée, documentée et traçable.
+**MedFlow AI Posologie** est une suite clinique spécialisée dans le suivi thérapeutique post-transplantation cardiaque. Elle couvre les trois piliers de l'immunosuppression de maintenance en un seul outil :
 
-Conçu pour une utilisation rapide en consultation ou en visite, sans inscription requise.
+| Module | Traitement | Références |
+|---|---|---|
+| 🫀 Tacrolimus | Prograf® — ajustement PK + plafond rénal | ISHLT 2016, Staatz & Tett 2004, Ojo 2003 |
+| 💊 MMF | Cellcept® — seuils hématologiques + schéma BID | ISHLT 2016, Kobashigawa 2006, Kaplan 2014 |
+| 🟠 Prednisolone | Corticothérapie — sevrage progressif + NODAT | ISHLT 2016, Kushwaha 2001, Hjelmesaeth 1997 |
+
+Le clinicien remplit les 3 onglets, génère un **compte-rendu PDF multimodule** et un **résumé IA prêt pour le DPI** en un clic — sans recopie manuelle.
 
 ---
 
 ## Fonctionnalités
 
-### Identification et suivi patient
-- Saisie nom / prénom → **ID unique déterministe** (SHA-256, 8 caractères)
-- Détection automatique patient connu avec badge *N bilans enregistrés*
-- Base de données SQLite locale — aucune donnée transmise à l'extérieur
-
-### Calculs cliniques
+### 🫀 Module Tacrolimus
 - **DFG Cockcroft-Gault** en temps réel (âge, poids, sexe, créatinine µmol/L)
 - **Stade KDIGO** G1 à G5 avec code couleur
-- **Ajustement PK proportionnel** du tacrolimus (Staatz & Tett, 2004) : dose × (C0-cible / C0-mesuré)
-- **Plafond néphroprotecteur** individualisé : 0,1 mg/kg × facteur DFG par stade (Ojo 2003, Ekberg 2007, Naesens 2009)
-- **Gestion hyperkaliémie** : plafonnement automatique si K⁺ > 5,5 mmol/L (Tumlin 1996)
-- Cibles C0 par phase post-greffe : M0–M3 (10–15), M3–M12 (8–12), > 1 an (5–10 ng/mL)
+- **Ajustement PK proportionnel** : dose × (C0-cible / C0-mesuré) — Staatz & Tett 2004
+- **Plafond néphroprotecteur** : 0,1 mg/kg × facteur DFG par stade KDIGO
+- **Correction hématocrite** optionnelle (C0 laboratoire → C0 corrigé)
+- Gestion hyperkaliémie : plafonnement automatique si K⁺ > 5,5 mmol/L
+- Cibles C0 par phase : M0–M3 (10–15), M3–M12 (8–12), >1 an (5–10 ng/mL)
+- Alertes interactions CYP3A4 (inhibiteurs / inducteurs)
 
-### Rapport PDF multipage
-- En-tête MedFlow AI avec identité patient et ID
-- Bilan actuel en deux colonnes (biologie rénale / tacrolimus + ionogramme)
-- Bloc recommandation coloré (vert / orange / rouge selon criticité)
-- **Interprétation clinique détaillée** — justification de la dose paragraphe par paragraphe :
-  - Contexte clinique (DFG, stade KDIGO)
-  - Analyse C0 résiduel et calcul PK
-  - Application du plafond néphroprotecteur avec références bibliographiques
-  - Contrainte hyperkaliémie si applicable
-  - Conclusion posologique
-- Raisonnement méthodologique (4 étapes avec formules)
-- Tableau historique de tous les bilans
-- Graphiques d'évolution (DFG, C0, dose, K⁺) dès le 2e bilan
+### 💊 Module MMF / Cellcept®
+- Dose recommandée par phase post-greffe et stade rénal
+- Seuils hématologiques : GB < 3,0 G/L → réduction ; GB < 2,0 / PNN < 1,0 → arrêt
+- Schéma BID en comprimés Cellcept® 500 mg (matin/soir individualisé)
+- Alertes intolérance gastro-intestinale avec adaptation de schéma
 
-### Suivi longitudinal
-- Enregistrement de chaque bilan avec horodatage
-- Graphiques Plotly interactifs (thème sombre) : DFG, C0, dose recommandée, kaliémie
-- Bandes de référence visuelles (zone thérapeutique C0, normokaliémie)
+### 🟠 Module Prednisolone
+- Cibles par phase : M0–M3 (15–30 mg/j), M3–M12 (10–15 mg/j), >1 an (5–10 mg/j)
+- **Calendrier de sevrage progressif** par paliers (protocole ISHLT 2016)
+- Alertes NODAT (glycémie > 7 mmol/L), HTA (PAS > 140 mmHg), ostéoporose
+- Contre-indication à l'arrêt si rejet récent ou infection active
+- Équivalences corticoïdes (prednisone / méthylprednisolone / hydrocortisone)
+- Grille de surveillance : DXA, cortisol 8h, glycémie, PA
 
-### Ionogramme
-- Interprétation natrémie (Na⁺) et kaliémie (K⁺)
-- Alertes cliniques graduées (normale → urgence métabolique)
-- Intégration dans la décision posologique
+### 📄 Rapport PDF multimodule
+- En-tête MedFlow AI + identité patient + ID SHA-256
+- Bilan Tacrolimus complet (biologie rénale, C0, recommandation, raisonnement PK)
+- Section MMF : posologie, schéma BID, alertes hématologiques
+- Section Prednisolone : dose, cible, statut, glycémie, PA, alertes
+- Interprétation clinique détaillée + raisonnement méthodologique (4 étapes)
+- Historique des bilans + graphiques d'évolution (DFG, C0, dose, K⁺)
+- **Résumé IA** (Claude) tri-module prêt pour le DPI
+
+### 🤖 Résumé IA (Claude)
+- Prompt médical structuré — rédaction à la 3ème personne, style note médicale
+- Couvre les 3 traitements en 6–8 phrases si tous les onglets sont remplis
+- Prêt à coller directement dans le DPI sans modification
+
+### 🗃️ Suivi longitudinal
+- Base SQLite : ID patient déterministe (SHA-256, 8 caractères)
+- Enregistrement horodaté de chaque bilan
+- Graphiques Plotly interactifs (thème sombre) : DFG, C0, dose, kaliémie
+- Comparaison bilan précédent / bilan actuel
 
 ---
 
 ## Bases scientifiques
 
-| Référence | Contribution dans l'outil |
-|---|---|
-| Staatz & Tett, *Clin Pharmacokinet* 2004 | Ajustement PK proportionnel (r C0/AUC = 0,89) |
-| Ojo et al., *NEJM* 2003 (n = 69 321) | Plafond rénal 0,1 mg/kg — 16,5 % IRC sévère à 5 ans sous CNI |
-| Ekberg et al. SYMPHONY, *NEJM* 2007 (n = 1 645) | Facteurs DFG — +8,3 mL/min si CNI réduit |
-| Naesens et al., *CJASN* 2009 | Néphrotoxicité dose-dépendante des CNI |
-| Kobashigawa et al. ISHLT, *J Heart Lung Transplant* 2016 | Cibles C0 par phase post-greffe cardiaque |
-| Tumlin et al., *Am J Kidney Dis* 1996 | Hyperkaliémie induite par CNI — mécanisme aldostérone-like |
-| Cockcroft & Gault, *Nephron* 1976 | Formule d'estimation du DFG |
+| Référence | Module | Contribution |
+|---|---|---|
+| Kobashigawa et al. ISHLT, *J Heart Lung Transplant* 2016 | Tous | Protocole immunosuppression post-greffe cardiaque |
+| Staatz & Tett, *Clin Pharmacokinet* 2004 | Tacrolimus | Ajustement PK proportionnel (r C0/AUC = 0,89) |
+| Ojo et al., *NEJM* 2003 (n = 69 321) | Tacrolimus | Plafond rénal 0,1 mg/kg |
+| Ekberg et al. SYMPHONY, *NEJM* 2007 | Tacrolimus | Facteurs DFG par stade KDIGO |
+| Naesens et al., *CJASN* 2009 | Tacrolimus | Néphrotoxicité dose-dépendante CNI |
+| Tumlin et al., *Am J Kidney Dis* 1996 | Tacrolimus | Hyperkaliémie sous CNI |
+| Kaplan et al., *Transplantation* 2014 | MMF | Seuils hématologiques MMF post-greffe |
+| Kobashigawa et al., *Transplantation* 2006 | MMF | Doses MMF en transplantation cardiaque |
+| Kushwaha et al., *J Heart Lung Transplant* 2001 | Prednisolone | Sevrage stéroïdes post-greffe cardiaque |
+| Hjelmesaeth et al., *Nephrol Dial Transplant* 1997 | Prednisolone | NODAT / Diabète corticoïdes |
+| Adler et al., *J Bone Miner Res* 2017 | Prednisolone | Prévention ostéoporose corticoïdes |
 
 ---
 
@@ -80,6 +98,14 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+### Variables d'environnement (optionnelles)
+
+```toml
+# .streamlit/secrets.toml
+ANTHROPIC_API_KEY = "sk-ant-..."              # Résumé IA (Claude)
+STRIPE_CHECKOUT_URL = "https://buy.stripe.com/..."  # Paywall PDF Pro
+```
+
 ### Dépendances
 
 ```
@@ -87,18 +113,7 @@ streamlit>=1.30.0
 fpdf2>=2.7.9
 matplotlib>=3.7.0
 plotly>=5.18.0
-```
-
-> SQLite est inclus dans la bibliothèque standard Python (aucune installation supplémentaire).
-
----
-
-## Formule Cockcroft-Gault
-
-```
-DFG (mL/min) = ((140 − âge) × poids × F) / (0,815 × créatinine µmol/L)
-
-F = 1,00 (Homme)  |  F = 0,85 (Femme)
+anthropic>=0.25.0
 ```
 
 ---
@@ -107,10 +122,25 @@ F = 1,00 (Homme)  |  F = 0,85 (Femme)
 
 ```
 medflow-posologie/
-├── app.py            # Application Streamlit (calculs, PDF, historique)
-├── requirements.txt  # Dépendances Python
-├── patients.db       # Base SQLite locale (générée automatiquement, non versionnée)
+├── app.py              # Application Streamlit principale (4 onglets)
+├── calculations.py     # Logique clinique : Tacrolimus, MMF, Prednisolone
+├── pdf_gen.py          # Génération PDF multimodule (fpdf2)
+├── ai_gen.py           # Résumé IA tri-module (Claude API)
+├── db.py               # Base SQLite patients & consultations
+├── requirements.txt
 └── README.md
+```
+
+---
+
+## Workflow clinique
+
+```
+① Onglet Tacrolimus   →  DFG · C0 · dose · ionogramme
+② Onglet MMF          →  GB · PNN · schéma BID
+③ Onglet Prednisolone →  dose · glycémie · PA · sevrage
+④ Retour Tacrolimus   →  [📄 PDF] ou [🤖 Résumé IA]
+                         → rapport tri-module en un clic
 ```
 
 ---
@@ -119,7 +149,8 @@ medflow-posologie/
 
 1. Connecter le dépôt sur [share.streamlit.io](https://share.streamlit.io)
 2. Point d'entrée : `app.py`
-3. Déploiement automatique à chaque `git push`
+3. Configurer les secrets (`ANTHROPIC_API_KEY`, `STRIPE_CHECKOUT_URL`)
+4. Déploiement automatique à chaque `git push`
 
 ---
 
