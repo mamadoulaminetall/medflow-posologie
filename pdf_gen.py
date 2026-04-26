@@ -130,7 +130,8 @@ def generate_pdf(pat_nom, pat_prenom, pat_id,
                  phase_label, c0, c0_statut, t_min, t_max,
                  dose_act, dose_rec, dose_pk, plafond, fr,
                  k_eleve, rec_titre, history_rows,
-                 ai_summary=None) -> bytes | None:
+                 ai_summary=None,
+                 mmf_data=None, pred_data=None) -> bytes | None:
     if not PDF_OK:
         return None
 
@@ -360,6 +361,56 @@ def generate_pdf(pat_nom, pat_prenom, pat_id,
                 row_y2 = cy if idx < 2 else (cy + 62)
                 pdf.image(buf, x=col_x, y=row_y2, w=88)
             pdf.set_y(cy + 62 * 2 + 4)
+
+    # ── MMF ───────────────────────────────────────────────────────────────────
+    if mmf_data:
+        if pdf.get_y() > 230:
+            pdf.add_page()
+        pdf.ln(3)
+        pdf_section(pdf, 'MMF / MYCOPHENOLATE MOFETIL (CELLCEPT)')
+        y_mmf = pdf.get_y()
+        h_mmf = pdf_box(pdf, 15, y_mmf, 88, 'Posologie MMF', [
+            ('Phase post-greffe', mmf_data.get('phase', '—')[:30]),
+            ('Dose actuelle',     f"{mmf_data.get('dose_act', '—')} mg/j"),
+            ('Dose recommandee',  f"{mmf_data.get('dose_rec', '—')} mg/j"),
+            ('Schema BID',        mmf_data.get('schema', '—')[:35]),
+        ])
+        alertes_mmf = mmf_data.get('alertes', [])
+        if alertes_mmf:
+            h_alt = pdf_box(pdf, 107, y_mmf, 88, 'Alertes cliniques MMF', [
+                (icone, titre[:32]) for icone, titre in alertes_mmf[:4]
+            ], title_rgb=(180, 60, 20))
+            pdf.set_y(y_mmf + max(h_mmf, h_alt) + 5)
+        else:
+            pdf.set_y(y_mmf + h_mmf + 5)
+
+    # ── Prednisolone ──────────────────────────────────────────────────────────
+    if pred_data:
+        if pdf.get_y() > 230:
+            pdf.add_page()
+        pdf.ln(3)
+        pdf_section(pdf, 'PREDNISOLONE / CORTICOTHERAPIE')
+        y_pred = pdf.get_y()
+        rows_pred = [
+            ('Phase post-greffe', pred_data.get('phase', '—')[:30]),
+            ('Dose actuelle',     f"{pred_data.get('dose_act', '—')} mg/j"),
+            ('Dose recommandee',  f"{pred_data.get('dose_rec', '—')} mg/j"),
+            ('Cible phase',       pred_data.get('cible', '—')),
+            ('Statut',            pred_data.get('statut', '—')[:30]),
+        ]
+        if pred_data.get('glycemie', 0) > 0:
+            rows_pred.append(('Glycemie a jeun', f"{pred_data['glycemie']} mmol/L"))
+        if pred_data.get('pas', 0) > 0:
+            rows_pred.append(('PA systolique', f"{pred_data['pas']} mmHg"))
+        h_pred = pdf_box(pdf, 15, y_pred, 88, 'Posologie Prednisolone', rows_pred)
+        alertes_pred = pred_data.get('alertes', [])
+        if alertes_pred:
+            h_alt2 = pdf_box(pdf, 107, y_pred, 88, 'Alertes cliniques Pred.', [
+                (icone, titre[:32]) for icone, titre in alertes_pred[:4]
+            ], title_rgb=(180, 80, 0))
+            pdf.set_y(y_pred + max(h_pred, h_alt2) + 5)
+        else:
+            pdf.set_y(y_pred + h_pred + 5)
 
     # ── Résumé IA ─────────────────────────────────────────────────────────────
     if ai_summary:

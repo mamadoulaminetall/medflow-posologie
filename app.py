@@ -646,6 +646,31 @@ with tab_outil:
 
     history_rows = get_consultations(pat_id) if patient_valid else []
 
+    # Construire les dicts MMF/Pred depuis session_state (remplis si le clinicien a visité ces onglets)
+    _mmf_snap = (
+        {
+            "dose_act": st.session_state.get("_mmf_dose_act"),
+            "dose_rec": st.session_state.get("_mmf_dose_rec"),
+            "phase":    st.session_state.get("_mmf_phase", ""),
+            "schema":   st.session_state.get("_mmf_schema", ""),
+            "alertes":  st.session_state.get("_mmf_alertes", []),
+        }
+        if st.session_state.get("_mmf_dose_rec") is not None else None
+    )
+    _pred_snap = (
+        {
+            "dose_act":  st.session_state.get("_pred_dose_act"),
+            "dose_rec":  st.session_state.get("_pred_dose_rec"),
+            "phase":     st.session_state.get("_pred_phase", ""),
+            "statut":    st.session_state.get("_pred_statut", ""),
+            "cible":     st.session_state.get("_pred_cible", ""),
+            "alertes":   st.session_state.get("_pred_alertes", []),
+            "glycemie":  st.session_state.get("_pred_glycemie", 0),
+            "pas":       st.session_state.get("_pred_pas", 0),
+        }
+        if st.session_state.get("_pred_dose_rec") is not None else None
+    )
+
     with btn2:
         if patient_valid:
             if STRIPE_ENABLED:
@@ -659,6 +684,8 @@ with tab_outil:
                     dose_tac, dose_rec, dose_pk, plafond, fr,
                     k_eleve, rec_titre, history_rows,
                     ai_summary=st.session_state.get("ai_summary"),
+                    mmf_data=_mmf_snap,
+                    pred_data=_pred_snap,
                 )
                 if pdf_bytes:
                     fname = f"MedFlow_{pat_id}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
@@ -681,6 +708,8 @@ with tab_outil:
                 phase_label, c0, c0_statut, t_min, t_max,
                 dose_tac, dose_rec, dose_prise,
                 k_eleve=k_eleve, ht_pct=ht_pct, c0_raw=c0_raw,
+                mmf_data=_mmf_snap,
+                pred_data=_pred_snap,
             )
         if _summary:
             st.session_state["ai_summary"] = _summary
@@ -972,6 +1001,14 @@ with tab_mmf:
     mmf_rec, mmf_dm, mmf_ds, mmf_cpm, mmf_cps, mmf_alertes = recommander_mmf(
         mmf_dose_act, mmf_phase, mmf_dfg, mmf_gb, mmf_pnn, mmf_gi
     )
+    st.session_state["_mmf_dose_act"] = mmf_dose_act
+    st.session_state["_mmf_dose_rec"] = mmf_rec
+    st.session_state["_mmf_phase"]    = mmf_phase
+    st.session_state["_mmf_schema"]   = (
+        f"{mmf_dm} mg matin + {mmf_ds} mg soir ({mmf_cpm}+{mmf_cps} cp)"
+        if mmf_rec > 0 else "ARRÊT MMF"
+    )
+    st.session_state["_mmf_alertes"]  = [(i, t) for i, t, _ in mmf_alertes]
 
     st.markdown("---")
     st.markdown("<div style='color:#10b981;font-size:0.72rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:12px'>📋 Recommandation posologique MMF</div>", unsafe_allow_html=True)
@@ -1163,6 +1200,14 @@ with tab_pred:
                               "Contrôle glycémique strict · Antidiabétiques oraux ou insuline selon profil · Avis diabétologie"))
 
     _pred_cible = PRED_CIBLES.get(pred_phase, {"min": 5.0, "max": 10.0, "step": 2.5})
+    st.session_state["_pred_dose_act"] = pred_dose_act
+    st.session_state["_pred_dose_rec"] = pred_dose_rec
+    st.session_state["_pred_phase"]    = pred_phase
+    st.session_state["_pred_statut"]   = pred_statut
+    st.session_state["_pred_cible"]    = f"{_pred_cible['min']}–{_pred_cible['max']} mg/j"
+    st.session_state["_pred_alertes"]  = [(i, t) for i, t, _ in pred_alertes]
+    st.session_state["_pred_glycemie"] = pred_glycemie
+    st.session_state["_pred_pas"]      = pred_pas
 
     st.markdown("---")
     st.markdown("<div style='color:#f97316;font-size:0.72rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:12px'>📋 Recommandation posologique — Prednisolone</div>", unsafe_allow_html=True)
