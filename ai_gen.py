@@ -25,7 +25,8 @@ def generate_consultation_summary(
     prompt = (
         "Tu es un assistant médical spécialisé en transplantation cardiaque.\n"
         "Rédige un résumé de consultation en français médical (4-5 phrases), "
-        "prêt à être collé dans un dossier patient informatisé (DPI).\n\n"
+        "prêt à être collé dans un dossier patient informatisé (DPI).\n"
+        "IMPORTANT : texte plain uniquement, aucun Markdown (pas de ##, --, **, etc.).\n\n"
         "Données :\n"
         f"- Âge : {age} ans, {sexe}, {poids} kg\n"
         f"- DFG estimé (Cockcroft-Gault) : {dfg} mL/min — Stade IRC {stade} ({stade_desc})\n"
