@@ -179,6 +179,50 @@ with st.sidebar:
             st.markdown("<div style='color:#64748b;font-size:0.78rem'>Aucun résultat</div>", unsafe_allow_html=True)
 
     st.markdown("<hr style='border-color:#27272a;margin:12px 0'>", unsafe_allow_html=True)
+
+    # ── Bouton PDF démo ───────────────────────────────────────────────────────
+    if PDF_OK:
+        if st.button("📄 Télécharger PDF démo", use_container_width=True, key="btn_demo_pdf",
+                     help="Exemple de compte-rendu généré par MedFlow AI (patient fictif)"):
+            _d_age, _d_poids, _d_sexe, _d_creat = 52, 75.0, "Homme", 110.0
+            _d_dfg = calc_dfg(_d_age, _d_poids, _d_sexe, _d_creat)
+            _d_stade, _d_stade_desc, _ = get_stade(_d_dfg)
+            _d_phase = "M3 – M12  (maintenance)"
+            _d_t_min, _d_t_max = PHASES[_d_phase]["min"], PHASES[_d_phase]["max"]
+            _d_c0, _d_dose_act, _d_k = 6.5, 4.0, 4.2
+            _d_dose_rec, _d_dose_pk, _d_plafond, _d_fr = recommander_tacrolimus(
+                _d_dose_act, _d_c0, _d_t_min, _d_t_max, _d_dfg, _d_poids, False
+            )
+            _d_pdf = generate_pdf(
+                "MARTIN", "Pierre", "DEMO001",
+                _d_age, _d_sexe, _d_poids, _d_creat,
+                _d_dfg, _d_stade, _d_stade_desc,
+                138.0, "Normal", _d_k, "Normal",
+                _d_phase, _d_c0, "Sous-therapeutique", _d_t_min, _d_t_max,
+                _d_dose_act, _d_dose_rec, _d_dose_pk, _d_plafond, _d_fr,
+                False, "⚠️ Augmentation recommandee",
+                history_rows=[],
+                ai_summary=(
+                    "Patient de 52 ans en post-transplantation cardiaque (phase M3-M12). "
+                    "Le C0 tacrolimus est a 6,5 ng/mL, en dessous de la cible (8-12 ng/mL), "
+                    "exposant le patient a un risque de rejet. La fonction renale est preservee "
+                    "(DFG 74 mL/min, stade G2) et l'ionogramme est normal. "
+                    "La dose est augmentee de 4 mg/j a 6 mg/j (3 mg matin + 3 mg soir, q12h) "
+                    "afin de ramener le C0 dans la fenetre therapeutique.\n"
+                    "*Genere par MedFlow AI - outil d'aide a la decision*"
+                ),
+            )
+            if _d_pdf:
+                st.download_button(
+                    label="⬇️ Télécharger",
+                    data=_d_pdf,
+                    file_name="MedFlow_AI_Demo_Tacrolimus.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="dl_demo_pdf",
+                )
+
+    st.markdown("<hr style='border-color:#27272a;margin:12px 0'>", unsafe_allow_html=True)
     st.markdown("<div style='color:#64748b;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px'>📋 Patients enregistrés</div>", unsafe_allow_html=True)
 
     all_pats = get_all_patients()
