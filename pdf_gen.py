@@ -129,7 +129,8 @@ def generate_pdf(pat_nom, pat_prenom, pat_id,
                  na_val, na_label, k_val, k_label,
                  phase_label, c0, c0_statut, t_min, t_max,
                  dose_act, dose_rec, dose_pk, plafond, fr,
-                 k_eleve, rec_titre, history_rows) -> bytes | None:
+                 k_eleve, rec_titre, history_rows,
+                 ai_summary=None) -> bytes | None:
     if not PDF_OK:
         return None
 
@@ -359,6 +360,19 @@ def generate_pdf(pat_nom, pat_prenom, pat_id,
                 row_y2 = cy if idx < 2 else (cy + 62)
                 pdf.image(buf, x=col_x, y=row_y2, w=88)
             pdf.set_y(cy + 62 * 2 + 4)
+
+    # ── Résumé IA ─────────────────────────────────────────────────────────────
+    if ai_summary:
+        if pdf.get_y() > 245:
+            pdf.add_page()
+        pdf.ln(3)
+        pdf_section(pdf, 'RESUME DE CONSULTATION - MEDFLOW AI')
+        pdf.set_fill_color(248, 245, 255)
+        pdf.set_text_color(30, 20, 70)
+        pdf.set_font('Helvetica', '', 8.5)
+        pdf.set_xy(18, pdf.get_y() + 2)
+        pdf.multi_cell(177, 5.5, ai_summary, fill=True)
+        pdf.set_y(pdf.get_y() + 4)
 
     # ── Disclaimer ────────────────────────────────────────────────────────────
     if pdf.get_y() > 270:

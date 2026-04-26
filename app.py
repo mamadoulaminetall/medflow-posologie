@@ -498,7 +498,8 @@ with tab_outil:
                     na_val, na_label, k_val, k_label,
                     phase_label, c0, c0_statut, t_min, t_max,
                     dose_tac, dose_rec, dose_pk, plafond, fr,
-                    k_eleve, rec_titre, history_rows
+                    k_eleve, rec_titre, history_rows,
+                    ai_summary=st.session_state.get("ai_summary"),
                 )
                 if pdf_bytes:
                     fname = f"MedFlow_{pat_id}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
