@@ -408,7 +408,9 @@ with tab_outil:
 
     with m1: st.markdown(metric_box("DFG estimé",      dfg,           "mL/min (CG)",            stade_color),  unsafe_allow_html=True)
     with m2: st.markdown(metric_box("Stade IRC",        stade,         stade_desc,               stade_color),  unsafe_allow_html=True)
-    with m3: st.markdown(metric_box("C0 tacrolimus",    c0,            f"ng/mL — {c0_statut}",   c0_color_hex), unsafe_allow_html=True)
+    _c0_label = "C0 Ht-corrigé" if (ht_pct > 0 and c0 != c0_raw) else "C0 tacrolimus"
+    _c0_unit  = f"ng/mL (mesuré : {c0_raw}) — {c0_statut}" if (ht_pct > 0 and c0 != c0_raw) else f"ng/mL — {c0_statut}"
+    with m3: st.markdown(metric_box(_c0_label, c0, _c0_unit, c0_color_hex), unsafe_allow_html=True)
     with m4:
         if var_tac_label:
             st.markdown(metric_box("Variation dose Tac", var_tac_label, "vs dose actuelle", var_tac_color), unsafe_allow_html=True)
@@ -529,11 +531,17 @@ with tab_outil:
     t_mid  = (t_min + t_max) / 2
     raw_pk = round(dose_tac * t_mid / c0, 2) if c0 > 0 else dose_tac
 
+    _c0_detail = (
+        f"Mesuré : {c0_raw} → corrigé Ht {ht_pct}% : {c0} ng/mL · cible {t_min}–{t_max} ng/mL"
+        if (ht_pct > 0 and c0 != c0_raw) else
+        f"{c0} ng/mL · cible {t_min}–{t_max} ng/mL"
+    )
+
     with r1:
         st.markdown(f"""<div style="background:#111113;border:1px solid #27272a;border-radius:10px;padding:14px">
           <div style="color:#64748b;font-size:0.7rem;margin-bottom:8px;font-weight:600">① Statut C0 résiduel</div>
           <div style="color:{c0_color_hex};font-weight:700;font-size:0.95rem">{c0_icon} {c0_statut.capitalize()}</div>
-          <div style="color:#94a3b8;font-size:0.78rem;margin-top:6px">{c0} ng/mL · cible {t_min}–{t_max} ng/mL</div>
+          <div style="color:#94a3b8;font-size:0.78rem;margin-top:6px">{_c0_detail}</div>
           <div style="color:#64748b;font-size:0.72rem;margin-top:4px">Phase {phase['label']} post-greffe</div>
         </div>""", unsafe_allow_html=True)
 
@@ -626,7 +634,7 @@ with tab_outil:
                 na_val, na_label, k_val, k_label,
                 phase_label, c0, c0_statut, t_min, t_max,
                 dose_tac, dose_rec, dose_prise,
-                k_eleve=k_eleve, ht_pct=ht_pct,
+                k_eleve=k_eleve, ht_pct=ht_pct, c0_raw=c0_raw,
             )
         if _summary:
             st.session_state["ai_summary"] = _summary

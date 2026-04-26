@@ -9,13 +9,18 @@ def generate_consultation_summary(
     na_val, na_label, k_val, k_label,
     phase_label, c0, c0_statut, t_min, t_max,
     dose_act, dose_rec, dose_prise,
-    k_eleve=False, ht_pct=0,
+    k_eleve=False, ht_pct=0, c0_raw=None,
 ) -> str | None:
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         return None
 
-    ht_line = f"- Hématocrite : {ht_pct}% (correction C0 appliquée)\n" if ht_pct > 0 else ""
+    if ht_pct > 0 and c0_raw is not None and c0_raw != c0:
+        ht_line = f"- C0 mesuré en laboratoire : {c0_raw} ng/mL → corrigé pour hématocrite {ht_pct}% : {c0} ng/mL\n"
+    elif ht_pct > 0:
+        ht_line = f"- Hématocrite : {ht_pct}% (correction C0 appliquée)\n"
+    else:
+        ht_line = ""
     k_line  = f"- Hyperkaliémie : K⁺ = {k_val} mmol/L > 5,5 — dose plafonnée à la dose actuelle\n" if k_eleve else ""
 
     prompt = (
@@ -27,7 +32,7 @@ def generate_consultation_summary(
         f"- Âge : {age} ans, {sexe}, {poids} kg\n"
         f"- DFG estimé (Cockcroft-Gault) : {dfg} mL/min — Stade IRC {stade} ({stade_desc})\n"
         f"- Phase post-greffe : {phase_label}\n"
-        f"- C0 tacrolimus résiduel : {c0} ng/mL ({c0_statut}) — cible {t_min}–{t_max} ng/mL\n"
+        f"- C0 tacrolimus résiduel (valeur utilisée pour le dosage) : {c0} ng/mL ({c0_statut}) — cible {t_min}–{t_max} ng/mL\n"
         f"- Natrémie : {na_val} mmol/L ({na_label})\n"
         f"- Kaliémie : {k_val} mmol/L ({k_label})\n"
         f"- Dose tacrolimus actuelle : {dose_act} mg/j → recommandée : {dose_rec} mg/j "
