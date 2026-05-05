@@ -185,6 +185,7 @@ with st.sidebar:
             st.markdown("<div style='color:#64748b;font-size:0.78rem'>Aucun résultat</div>", unsafe_allow_html=True)
 
     st.markdown("<hr style='border-color:#27272a;margin:12px 0'>", unsafe_allow_html=True)
+    st.markdown("""<a href="https://buy.stripe.com/eVq9AT9ZCbxb34ybrgb3q04" target="_blank" style="display:block;background:linear-gradient(135deg,#10b981,#059669);color:white;text-align:center;padding:11px 16px;border-radius:9px;font-weight:700;text-decoration:none;font-size:0.87rem;margin-bottom:10px">💳 S'abonner — 39€/mois</a>""", unsafe_allow_html=True)
 
     # ── Bouton PDF démo ───────────────────────────────────────────────────────
     if PDF_OK:
@@ -1404,7 +1405,7 @@ with tab_mentions:
     """)
 
     ml_section("Données personnelles — RGPD", """
-        En version locale (<code style="color:#93c5fd">patients.db</code> SQLite), les données sont stockées
+        En version locale (<code style="color:#93c5fd">medflow_patients.db</code> SQLite), les données sont stockées
         <strong>exclusivement sur l'appareil de l'utilisateur</strong> et ne sont pas transmises à des tiers.<br><br>
         En version déployée sur Streamlit Cloud, <strong>aucune donnée patient identifiante ne doit être saisie</strong>
         (voir avertissement HDS ci-dessus).<br><br>
