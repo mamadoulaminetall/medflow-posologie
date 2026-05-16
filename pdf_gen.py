@@ -601,13 +601,17 @@ def generate_pdf(pat_nom, pat_prenom, pat_id,
             _rect(pdf, ML, y, PW, avail, C_PURPLE_L)
             _rect(pdf, ML, y, 3, avail, C_PURPLE)   # left purple bar
 
+            import textwrap
             _F(pdf, '', 7.5, C_TEXT)
-            pdf.set_xy(ML + 5, y + 2)
-            # Approx chars that fit in available height
-            chars_per_line = int((PW - 8) / 2.1)
-            lines_avail    = int(avail / 5)
-            max_chars      = chars_per_line * lines_avail
-            pdf.multi_cell(PW - 8, 5, _cpdf(ai_summary[:max_chars]))
+            line_h    = 4.5
+            max_lines = max(1, int((avail - 4) / line_h))
+            raw_text  = _cpdf(ai_summary).replace('\n', ' ')
+            lines     = textwrap.wrap(raw_text, width=105)[:max_lines]
+            cy = y + 2
+            for ln in lines:
+                pdf.set_xy(ML + 5, cy)
+                pdf.cell(PW - 10, line_h, ln)
+                cy += line_h
 
     # ════════════════════════════════════════════════════════════════════════
     # 8 — FOOTER
